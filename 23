@@ -173,9 +173,27 @@ CosmeticsGroup:AddDropdown("AccItem", {
     Default = "None",
 })
 
-CosmeticsGroup:AddButton("Wear", function() end)
-CosmeticsGroup:AddButton("Clear Category", function() end)
-CosmeticsGroup:AddButton("Refresh Catalog", function() end)
+CosmeticsGroup:AddButton("Wear", function()
+    local cat = Options.AccFolder.Value
+    local item = Options.AccItem.Value
+    local ok, err = wearCosmetic(cat, item)
+    notify("Cosmetic", ok and (tostring(cat) .. ": " .. tostring(item)) or ("failed: " .. tostring(err)))
+end)
+CosmeticsGroup:AddButton("Clear Category", function()
+    local cat = Options.AccFolder.Value
+    local ok, err = clearCosmetic(cat)
+    notify("Cosmetic", ok and ("cleared " .. tostring(cat)) or ("failed: " .. tostring(err)))
+end)
+CosmeticsGroup:AddButton("Refresh Catalog", function()
+    local cat = Options.AccFolder.Value
+    local catalog = accCatalog()
+    local list = catalog[cat] or { "None" }
+    if #list == 0 then list = { "None" } end
+    if Options.AccItem and Options.AccItem.SetValues then
+        Options.AccItem:SetValues(list)
+    end
+    notify("Cosmetic", "catalog refreshed")
+end)
 CosmeticsGroup:AddLabel("Client-side only. Shows for you, not others.")
 
 -- ============================================================================
@@ -191,8 +209,16 @@ GreenFxGroup:AddDropdown("GreenFx", {
     Default = "Basic",
 })
 
-GreenFxGroup:AddButton("Equip", function() end)
-GreenFxGroup:AddButton("Test Locally", function() end)
+GreenFxGroup:AddButton("Equip", function()
+    local name = Options.GreenFx.Value
+    local ok = applyGreenFx(name)
+    notify("Green FX", tostring(name) .. (ok and " equipped" or " equipped (client)"))
+end)
+GreenFxGroup:AddButton("Test Locally", function()
+    local name = Options.GreenFx.Value
+    local ok, err = playGreenFx(name)
+    notify("Green FX", ok and ("played " .. tostring(name)) or ("failed: " .. tostring(err)))
+end)
 
 GreenFxGroup:AddToggle("GreenFxAuto", {
     Text = "Play On Green Release",
@@ -212,7 +238,9 @@ CelebGroup:AddToggle("GreenCeleb", {
     Default = false,
 })
 
-CelebGroup:AddButton("Play Celebration", function() end)
+CelebGroup:AddButton("Play Celebration", function()
+    playCelebration(Options.CelebPick.Value)
+end)
 CelebGroup:AddDivider()
 
 CelebGroup:AddDropdown("GoalFxPick", {
@@ -942,6 +970,122 @@ Options.Wear = Options.Wear or {}
 -- For simplicity the button callbacks are re-assigned by finding them, but since
 -- AddButton doesn't store easily, we just re-create the action via notify on click
 -- by using the existing empty buttons + Toggles/Options pattern above.
+
+-- ============================================================================
+-- RUNTIME LOOPS (make the toggles actually do something)
+-- ============================================================================
+
+-- Infinite Stamina
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.InfiniteStamina.Value then return end
+    local pkt = myPkt()
+    if not pkt then return end
+    local m = pkt.model
+    local mx = m and m:GetAttribute("MaxStamina")
+    local max = type(mx) == "number" and mx or 100
+    setAttr(pkt, "Stamina", max)
+end))
+
+-- Auto Sprint
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.AutoSprint.Value then return end
+    local pkt = myPkt()
+    if not pkt then return end
+    setAttr(pkt, "Sprinting", true)
+    pcall(function() send(InputS, "Sprint", true) end)
+end))
+
+-- CFrame Speed
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.CfSpeed.Value then return end
+    local root = myRoot()
+    if not root then return end
+    local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local moveDir = hum.MoveDirection
+    if moveDir.Magnitude > 0 then
+        local speed = Options.CfSpeedValue.Value or 40
+        root.CFrame = root.CFrame + (moveDir * (speed / 50))
+    end
+end))
+
+-- Walk Boost
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.WalkBoost.Value then return end
+    local root = myRoot()
+    if not root then return end
+    local proxy = GetProxy()
+    if not proxy then return end
+    local vel = proxy.AssemblyLinearVelocity
+    local flat = Vector3.new(vel.X, 0, vel.Z)
+    if flat.Magnitude > 1 then
+        local mult = Options.WalkBoostMult.Value or 1.6
+        local cap = Options.WalkBoostCap.Value or 45
+        local extra = math.min(flat.Magnitude * (mult - 1), cap)
+        proxy.CFrame = proxy.CFrame + flat.Unit * (extra * 0.016)
+    end
+end))
+
+-- Hip Height
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.HipHeight.Value then return end
+    local root = myRoot()
+    if not root then return end
+    local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.HipHeight = Options.HipValue.Value or 2
+    end
+end))
+
+-- Speed With Ball
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.SpeedWithBall.Value then return end
+    local pkt = myPkt()
+    if not pkt then return end
+    local b = pktAttr(pkt, "Basketball")
+    if not b then return end
+    local root = myRoot()
+    if not root then return end
+    local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = Options.SwbSpeed.Value or 34
+    end
+end))
+
+-- Ankle Breaker (fires dribble when defender is close)
+local lastAnkle = 0
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.AnkleBreaker.Value then return end
+    local now = os.clock()
+    if now - lastAnkle < 0.8 then return end
+    local pkt = myPkt()
+    local root = myRoot()
+    if not pkt or not root then return end
+    local b = pktAttr(pkt, "Basketball")
+    if not b then return end
+    local move = Options.AnkleBreakerMove.Value or "SnatchBack"
+    playDribble(move)
+    lastAnkle = now
+end))
+
+-- Dribble Macros keybinds
+for i = 1, 4 do
+    local keyOpt = Options["DribbleMacroKey" .. i]
+    if keyOpt and keyOpt.OnChanged then
+        keyOpt:OnChanged(function(v)
+            DribbleMacros[i].Key = v
+            DribbleMacros[i].Move = Options["DribbleMacro" .. i].Value
+            bindDribbleMacro(i)
+        end)
+    end
+end
+
+-- Spoofers continuous apply
+track(RunService.Heartbeat:Connect(function()
+    if Toggles.SpoofCoins.Value or Toggles.SpoofRank.Value or Toggles.SpoofOverall.Value or Toggles.SpoofName.Value then
+        applySpoofs()
+    end
+end))
 
 Library:OnUnload(function()
     S.cleaned = true
