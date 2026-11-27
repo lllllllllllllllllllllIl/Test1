@@ -736,6 +736,11 @@ local function greenFxModule()
     return mod
 end
 
+local function playCelebration(name)
+    if type(name) ~= "string" or name == "" or name == "None" then return false end
+    return send(InputS, "GreenAnimation", name)
+end
+
 local function playGreenFx(name)
     if type(name) ~= "string" or name == "" then return false, "no effect" end
     local mod = greenFxModule()
@@ -749,27 +754,61 @@ local function playGreenFx(name)
         mod:RunEffect(pkt.model, ball, goal, WS:GetServerTimeNow(), name)
     end)
     if not ok then return false, tostring(err) end
-    pcall(function()
-        if RunGreenR then RunGreenR:FireServer() end
-        if GreenCelebR then GreenCelebR:FireServer() end
-    end)
     return true
 end
 
 local function applyGreenFx(id)
     if type(id) ~= "string" then return false, "no id" end
     S.greenFx = id
+    local ok = false
     if InvS and type(InvS.EquipEffect) == "function" then
-        pcall(function() InvS:EquipEffect(id) end)
+        local okc, res = pcall(function() return InvS:EquipEffect(id) end)
+        ok = okc and res and true or false
     end
-    return true
+    local pd = PlayerCtrl and PlayerCtrl.ProfileData
+    if type(pd) == "table" then
+        pcall(function() pd.GreenEffect = id end)
+        pcall(function()
+            if type(pd.SavedSettings) ~= "table" then pd.SavedSettings = {} end
+            if type(pd.SavedSettings.Graphics) ~= "table" then pd.SavedSettings.Graphics = {} end
+            pd.SavedSettings.Graphics.GreenEffects = true
+        end)
+    end
+    return ok or true
 end
 
-local function playCelebration(name)
-    if type(name) ~= "string" or name == "" then return end
-    pcall(function()
-        if GreenCelebR then GreenCelebR:FireServer(name) end
-    end)
+-- Listen for green releases from the server and play our effect / celebration
+local function listen(remoteObj, fn)
+    if not remoteObj or not remoteObj.OnClientEvent then return nil end
+    return remoteObj.OnClientEvent:Connect(fn)
+end
+
+if RunGreenR then
+    track(listen(RunGreenR, function(charModel, ball, goal, serverTime, effectName)
+        if not Toggles.GreenFxAuto.Value then return end
+        local mod = greenFxModule()
+        if not mod or type(mod.RunEffect) ~= "function" then return end
+        local name = Toggles.GoalFxOverride.Value and (Options.GoalFxPick.Value or S.greenFx)
+            or (Options.GreenFx.Value or S.greenFx)
+            or (type(effectName) == "string" and effectName)
+            or "Basic"
+        local pkt = myPkt()
+        if not pkt or not pkt.model then return end
+        local useBall = (typeof(ball) == "Instance" and ball) or looseBall(18) or pktRoot(pkt)
+        local useGoal = (typeof(goal) == "Instance" and goal) or myGoal() or pktRoot(pkt)
+        if not useBall or not useGoal then return end
+        pcall(function()
+            mod:RunEffect(pkt.model, useBall, useGoal, serverTime or WS:GetServerTimeNow(), name)
+        end)
+    end))
+end
+
+if GreenCelebR then
+    track(listen(GreenCelebR, function()
+        if Toggles.GreenCeleb.Value then
+            playCelebration(Options.CelebPick.Value)
+        end
+    end))
 end
 
 -- Cosmetics helpers
@@ -850,23 +889,41 @@ local function parseColor(s)
     return { 255, 255, 255 }
 end
 
+local function skinColorFromName(name)
+    local cfg = AccessoriesCfg
+    local entry = type(cfg) == "table" and cfg.SkinTone and cfg.SkinTone[name]
+    if typeof(entry) == "Color3" then
+        return {
+            math.round(entry.R * 255),
+            math.round(entry.G * 255),
+            math.round(entry.B * 255),
+        }
+    end
+    return { 255, 255, 255 }
+end
+
 local function wearCosmetic(cat, name, color)
+    if not cat or not name or name == "" or name == "None" then return false, "nothing selected" end
     local pkt = myPkt()
-    if not pkt or type(pkt.UpdateAppearance) ~= "function" then return false, "no character packet" end
-    if not name or name == "" or name == "None" then return false, "pick an item" end
+    if not pkt or not pkt.Appearance then return false, "no character" end
+    if type(pkt.UpdateAppearance) ~= "function" then return false, "no appearance" end
+    color = color or { 255, 255, 255 }
+
     local ok, err = pcall(function()
-        local payload = {}
         if cat == "Mascot" then
-            payload.Mascot = { name }
+            pkt:UpdateAppearance({ Mascot = { name } })
+        elseif cat == "Shoes" then
+            pkt:UpdateAppearance({ Shoes = {
+                LeftShoe = { name, color },
+                RightShoe = { name, color },
+            } })
         elseif cat == "SkinTone" then
-            payload.SkinTone = name
+            pkt:UpdateAppearance({ SkinTone = skinColorFromName(name) })
+        elseif cat == "Jersey" or cat == "Shirt" or cat == "Pants" then
+            pkt:UpdateAppearance({ [cat] = name })
         else
-            payload[cat] = name
+            pkt:UpdateAppearance({ [cat] = { { name, color } } })
         end
-        if color and type(color) == "table" then
-            payload.Color = color
-        end
-        pkt:UpdateAppearance(payload)
     end)
     if not ok then return false, tostring(err) end
     return true
@@ -874,7 +931,9 @@ end
 
 local function clearCosmetic(cat)
     local pkt = myPkt()
-    if not pkt or type(pkt.UpdateAppearance) ~= "function" then return false, "no character packet" end
+    if not pkt or type(pkt.UpdateAppearance) ~= "function" then return false, "no character" end
+    if cat == "Shoes" then return false, "shoes have no empty slot" end
+    if cat == "SkinTone" then return false, "pick a tone instead" end
     local ok, err = pcall(function()
         if cat == "Mascot" then
             pkt:UpdateAppearance({ Mascot = { "None" } })
