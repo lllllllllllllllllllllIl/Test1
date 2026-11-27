@@ -1,16 +1,12 @@
---[[
-  Practical Basketball — Linoria build
-  Converted from Angel Hub UI to violin-suzutsuki/LinoriaLib.
-  Aero framework. Character data lives on Controllers.Characters packets.
-]]
-
-local gg = (getgenv and getgenv()) or _G
-if gg.PB_Cleanup then pcall(gg.PB_Cleanup) end
-
-local repo = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/"
+--========================================================--
+-- LOAD LINORIA (Obsidian)
+--========================================================--
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local Options = Library.Options
+local Toggles = Library.Toggles
 gg.Library = Library
 if not (Library and Library.CreateWindow) then return end
 
@@ -28,9 +24,13 @@ if not me then return end
 
 local function notify(t, x)
     pcall(function()
-        local msg = tostring(t or "")
-        if x ~= nil and x ~= "" then msg = msg .. ": " .. tostring(x) end
-        Library:Notify(msg, 2.5)
+        local title = tostring(t or "Practical")
+        local desc = (x ~= nil and tostring(x)) or nil
+        if desc and desc ~= "" then
+            Library:Notify({ Title = title, Description = desc, Time = 2.5 })
+        else
+            Library:Notify({ Title = "Practical", Description = title, Time = 2.5 })
+        end
     end)
 end
 
@@ -4246,23 +4246,22 @@ RunService:BindToRenderStep("PB_Frame", Enum.RenderPriority.Character.Value + 1,
 -- UI
 -- ============================================================================
 
+--========================================================--
+-- WINDOW + TABS (Obsidian)
+--========================================================--
 local Window = Library:CreateWindow({
-    Title = "Practical Basketball | Linoria",
+    Title = "Practical Basketball",
+    Footer = "Angel Hub / Obsidian",
+    Icon = 95816097006870,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
     Center = true,
     AutoShow = true,
-    TabPadding = 8,
-    MenuFadeTime = 0.2,
 })
-pcall(function()
-    -- RightShift menu toggle (Linoria default may differ by build)
-    if Library.ToggleKeybind ~= nil then
-        -- set later via UI Settings keybind if present
-    end
-end)
 
 do
 -- ------------------------------------------------------------------ AUTO TIME
-local AT = Window:AddTab("Auto Time")
+local AT = Window:AddTab("Auto Time", "timer")
 local ATL = AT:AddLeftGroupbox("Timing")
 local ATR = AT:AddRightGroupbox("Calibration")
 
@@ -4299,7 +4298,7 @@ end})
 end
 do
 -- ------------------------------------------------------------------ SHOOTING
-local SH = Window:AddTab("Shooting")
+local SH = Window:AddTab("Shooting", "crosshair")
 local SHL = SH:AddLeftGroupbox("Shots")
 
 SHL:AddToggle("AutoShoot", { Text = "Auto Shoot When Open", Default = false,
@@ -4419,7 +4418,7 @@ end})
 end
 do
 -- ------------------------------------------------------------------ DRIBBLE
-local DB = Window:AddTab("Dribble")
+local DB = Window:AddTab("Dribble", "dribbble")
 local DBL = DB:AddLeftGroupbox("Ball Control")
 
 DBL:AddToggle("DribbleGlide", { Text = "Dribble Glide", Default = true,
@@ -4466,7 +4465,7 @@ end
 end
 do
 -- ------------------------------------------------------------------ OFFENSE GUARD
-local OG = Window:AddTab("Offense")
+local OG = Window:AddTab("Offense", "activity")
 local OGL = OG:AddLeftGroupbox("Offense")
 local OGR = OG:AddRightGroupbox("Blow By")
 
@@ -4493,7 +4492,7 @@ end})
 end
 do
 -- ------------------------------------------------------------------ DEFENSE
-local DF = Window:AddTab("Defense")
+local DF = Window:AddTab("Defense", "shield")
 local DFL = DF:AddLeftGroupbox("Guard")
 local DFR = DF:AddRightGroupbox("Contest")
 
@@ -4534,7 +4533,7 @@ DFR:AddButton({ Text = "Jump Now", Func = function() send(InputS, "Jump") end})
 end
 do
 -- ------------------------------------------------------------------ MOVEMENT
-local MV = Window:AddTab("Movement")
+local MV = Window:AddTab("Movement", "footprints")
 local MVL = MV:AddLeftGroupbox("Movement")
 local MVR = MV:AddRightGroupbox("Character")
 
@@ -4558,7 +4557,7 @@ MVR:AddSlider("HipValue", { Text = "Hip Value", Min = -2, Max = 8, Default = 2, 
 end
 do
 -- ------------------------------------------------------------------ COSMETICS
-local CS = Window:AddTab("Cosmetics")
+local CS = Window:AddTab("Cosmetics", "shirt")
 local CSL = CS:AddLeftGroupbox("Catalog")
 local CSR = CS:AddRightGroupbox("Apply")
 
@@ -4612,7 +4611,7 @@ CSR:AddLabel("it shows for you and nobody else.")
 end
 do
 -- ------------------------------------------------------------------ GREEN FX
-local GF = Window:AddTab("Green FX")
+local GF = Window:AddTab("Green FX", "sparkles")
 local GFL = GF:AddLeftGroupbox("Effect")
 local GFR = GF:AddRightGroupbox("Celebration")
 
@@ -4668,7 +4667,7 @@ GFR:AddToggle("GoalFxOverride", { Text = "Override (no stacking)", Default = fal
 end
 do
 -- ------------------------------------------------------------------ REC
-local RC = Window:AddTab("REC")
+local RC = Window:AddTab("REC", "users")
 local RCL = RC:AddLeftGroupbox("Auto Farm")
 local RCR = RC:AddRightGroupbox("Server")
 
@@ -4931,7 +4930,7 @@ end)
 end
 do
 -- ------------------------------------------------------------------ SPOOFERS
-local SP = Window:AddTab("Spoofers")
+local SP = Window:AddTab("Spoofers", "user-cog")
 local SPL = SP:AddLeftGroupbox("Profile")
 local SPR = SP:AddRightGroupbox("Identity")
 
@@ -4958,14 +4957,30 @@ SPR:AddInput("NameValue", { Text = "Name", Default = "Practical", Placeholder = 
     Callback = function(v) S.nameValue = v end })
 SPR:AddLabel("Client-side display only.")
 
--- UI Settings (Linoria ThemeManager + SaveManager)
-local UI = Window:AddTab("UI Settings")
+--========================================================--
+-- UI SETTINGS (Obsidian ThemeManager + SaveManager)
+--========================================================--
+local UI = Window:AddTab("UI Settings", "settings")
 local MenuGroup = UI:AddLeftGroupbox("Menu")
-MenuGroup:AddButton({ Text = "Unload", Func = function()
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = true,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+MenuGroup:AddLabel("Menu bind")
+    :AddKeyPicker("MenuKeybind", {
+        Default = "LeftControl",
+        NoUI = true,
+        Text = "Menu keybind",
+    })
+MenuGroup:AddButton("Unload", function()
     pcall(function() if gg.PB_Cleanup then gg.PB_Cleanup() end end)
     Library:Unload()
-end })
-MenuGroup:AddLabel("Menu keybind is in Linoria keybind list (default varies by build)")
+end)
+Library.ToggleKeybind = Options.MenuKeybind
+
 pcall(function()
     Library:OnUnload(function()
         pcall(function() if gg.PB_Cleanup then gg.PB_Cleanup() end end)
@@ -4975,7 +4990,7 @@ end)
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 ThemeManager:SetFolder("PracticalBasketball")
 SaveManager:SetFolder("PracticalBasketball/configs")
 SaveManager:BuildConfigSection(UI)
@@ -5108,4 +5123,4 @@ gg.PB = {
     cleanup = cleanup,
 }
 
-notify("Practical", "Loaded (Linoria) — open menu with the Linoria toggle key")
+notify("Practical", "Loaded (Obsidian) — menu key LeftControl")
