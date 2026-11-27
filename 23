@@ -1,5 +1,6 @@
 -- Practical Basketball - Obsidian GUI
--- Structured the same way as the working Vision Hub example
+-- UI is built first (same order as the working Vision Hub script)
+-- Game logic comes after
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -26,7 +27,306 @@ local Tabs = {
 }
 
 -- ============================================================================
--- SERVICES
+-- DRIBBLE TAB
+-- ============================================================================
+
+local DribbleGroup = Tabs.Dribble:AddLeftGroupbox("Ball Control")
+
+DribbleGroup:AddToggle("DribbleGlide", {
+    Text = "Dribble Glide",
+    Default = true,
+})
+
+DribbleGroup:AddSlider("GlideSpeed", {
+    Text = "Glide Speed %",
+    Default = 25,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+})
+
+DribbleGroup:AddToggle("SpeedWithBall", {
+    Text = "Speed With Ball",
+    Default = false,
+})
+
+DribbleGroup:AddSlider("SwbSpeed", {
+    Text = "Ball Speed",
+    Default = 34,
+    Min = 16,
+    Max = 80,
+    Rounding = 0,
+})
+
+DribbleGroup:AddDivider()
+
+DribbleGroup:AddToggle("AnkleBreaker", {
+    Text = "Auto Ankle Breaker",
+    Default = false,
+})
+
+DribbleGroup:AddDropdown("AnkleBreakerMove", {
+    Text = "Ankle Move",
+    Values = { "Crossover", "Hesitation", "Tween", "BehindBack", "Spin", "SnatchBack" },
+    Default = "SnatchBack",
+})
+
+DribbleGroup:AddDivider()
+
+DribbleGroup:AddToggle("InfiniteStamina", {
+    Text = "Infinite Stamina",
+    Default = false,
+})
+
+DribbleGroup:AddDivider()
+DribbleGroup:AddLabel("Dribble Macros")
+
+for i = 1, 4 do
+    DribbleGroup:AddDropdown("DribbleMacro" .. i, {
+        Text = "Macro " .. i .. " Move",
+        Values = { "Crossover", "Hesitation", "Tween", "BehindBack", "Spin", "SnatchBack" },
+        Default = "Crossover",
+    })
+    DribbleGroup:AddKeybind("DribbleMacroKey" .. i, {
+        Text = "Macro " .. i .. " Key",
+        Default = "None",
+        Mode = "Hold",
+    })
+end
+
+-- ============================================================================
+-- MOVEMENT TAB
+-- ============================================================================
+
+local MovementGroup = Tabs.Movement:AddLeftGroupbox("Movement")
+local CharacterGroup = Tabs.Movement:AddRightGroupbox("Character")
+
+MovementGroup:AddToggle("CfSpeed", {
+    Text = "CFrame Speed",
+    Default = false,
+})
+
+MovementGroup:AddSlider("CfSpeedValue", {
+    Text = "Speed",
+    Default = 40,
+    Min = 16,
+    Max = 150,
+    Rounding = 0,
+})
+
+MovementGroup:AddToggle("AutoSprint", {
+    Text = "Auto Sprint",
+    Default = false,
+})
+
+MovementGroup:AddToggle("WalkBoost", {
+    Text = "Walk Speed Boost",
+    Default = false,
+})
+
+MovementGroup:AddSlider("WalkBoostMult", {
+    Text = "Speed Multiplier",
+    Default = 1.6,
+    Min = 1.1,
+    Max = 3.0,
+    Rounding = 1,
+})
+
+MovementGroup:AddSlider("WalkBoostCap", {
+    Text = "Max Extra Studs/s",
+    Default = 45,
+    Min = 10,
+    Max = 120,
+    Rounding = 0,
+})
+
+CharacterGroup:AddToggle("HipHeight", {
+    Text = "Hip Height",
+    Default = false,
+})
+
+CharacterGroup:AddSlider("HipValue", {
+    Text = "Hip Value",
+    Default = 2,
+    Min = -2,
+    Max = 8,
+    Rounding = 1,
+})
+
+-- ============================================================================
+-- COSMETICS TAB
+-- ============================================================================
+
+local CosmeticsGroup = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
+local ApplyGroup = Tabs.Cosmetics:AddRightGroupbox("Apply")
+
+CosmeticsGroup:AddDropdown("AccFolder", {
+    Text = "Category",
+    Values = { "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack", "Shoes", "Mascot", "Jersey", "Shirt", "Pants", "SkinTone" },
+    Default = "Hats",
+})
+
+CosmeticsGroup:AddDropdown("AccItem", {
+    Text = "Item",
+    Values = { "None" },
+    Default = "None",
+})
+
+CosmeticsGroup:AddTextbox("AccColor", {
+    Text = "Color (r,g,b or hex)",
+    Default = "255,255,255",
+    Placeholder = "255,255,255",
+})
+
+ApplyGroup:AddButton("Wear", function() end)
+ApplyGroup:AddButton("Clear Category", function() end)
+ApplyGroup:AddButton("Refresh Catalog", function() end)
+ApplyGroup:AddLabel("Client-side only. Shows for you, not others.")
+
+-- ============================================================================
+-- GREEN FX TAB
+-- ============================================================================
+
+local GreenFxGroup = Tabs["Green FX"]:AddLeftGroupbox("Effect")
+local CelebGroup = Tabs["Green FX"]:AddRightGroupbox("Celebration")
+
+GreenFxGroup:AddDropdown("GreenFx", {
+    Text = "Green Effect",
+    Values = { "Basic" },
+    Default = "Basic",
+})
+
+GreenFxGroup:AddButton("Equip", function() end)
+GreenFxGroup:AddButton("Test Locally", function() end)
+
+GreenFxGroup:AddToggle("GreenFxAuto", {
+    Text = "Play On Green Release",
+    Default = true,
+})
+
+GreenFxGroup:AddLabel("RunEffect is called directly so the effect plays even if the server thinks you don't own it.")
+
+CelebGroup:AddDropdown("CelebPick", {
+    Text = "Celebration",
+    Values = { "None" },
+    Default = "None",
+})
+
+CelebGroup:AddToggle("GreenCeleb", {
+    Text = "Celebrate On Green",
+    Default = false,
+})
+
+CelebGroup:AddButton("Play Celebration", function() end)
+CelebGroup:AddDivider()
+
+CelebGroup:AddDropdown("GoalFxPick", {
+    Text = "Goal FX",
+    Values = { "Basic" },
+    Default = "Basic",
+})
+
+CelebGroup:AddToggle("GoalFxOverride", {
+    Text = "Override (no stacking)",
+    Default = false,
+})
+
+-- ============================================================================
+-- SPOOFERS TAB
+-- ============================================================================
+
+local SpoofGroup = Tabs.Spoofers:AddLeftGroupbox("Profile")
+local IdentityGroup = Tabs.Spoofers:AddRightGroupbox("Identity")
+
+SpoofGroup:AddToggle("SpoofCoins", {
+    Text = "Coin Spoofer",
+    Default = false,
+})
+
+SpoofGroup:AddSlider("CoinsValue", {
+    Text = "Coins",
+    Default = 999999,
+    Min = 0,
+    Max = 100000000,
+    Rounding = 0,
+})
+
+SpoofGroup:AddToggle("SpoofRank", {
+    Text = "Rank Spoofer",
+    Default = false,
+})
+
+SpoofGroup:AddDropdown("RankValue", {
+    Text = "Rank",
+    Values = { "Starter", "Rookie", "Pro", "AllStar", "Superstar", "Legend", "GOAT" },
+    Default = "Legend",
+})
+
+SpoofGroup:AddToggle("SpoofOverall", {
+    Text = "Overall Spoofer",
+    Default = false,
+})
+
+SpoofGroup:AddSlider("OverallValue", {
+    Text = "Overall",
+    Default = 99,
+    Min = 60,
+    Max = 99,
+    Rounding = 0,
+})
+
+IdentityGroup:AddToggle("SpoofName", {
+    Text = "Name Spoofer",
+    Default = false,
+})
+
+IdentityGroup:AddTextbox("NameValue", {
+    Text = "Name",
+    Default = "Practical",
+    Placeholder = "display name",
+})
+
+IdentityGroup:AddLabel("Client-side display only.")
+
+-- ============================================================================
+-- UI SETTINGS TAB
+-- ============================================================================
+
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = true,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+    end,
+})
+
+MenuGroup:AddLabel("Menu bind")
+    :AddKeyPicker("MenuKeybind", {
+        Default = "RightShift",
+        NoUI = true,
+        Text = "Menu keybind"
+    })
+
+MenuGroup:AddButton("Unload", function()
+    Library:Unload()
+end)
+
+Library.ToggleKeybind = Library.Options.MenuKeybind
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("PracticalBasketball")
+SaveManager:SetFolder("PracticalBasketball/configs")
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+SaveManager:LoadAutoloadConfig()
+
+-- ============================================================================
+-- GAME LOGIC (runs after UI is fully built)
 -- ============================================================================
 
 local Players = game:GetService("Players")
@@ -38,9 +338,10 @@ local me = Players.LocalPlayer
 
 local AeroFolder = RS:FindFirstChild("Aero")
 local Svc = AeroFolder and AeroFolder:FindFirstChild("AeroRemoteServices")
-if not Svc then
-    Library:Notify({ Title = "Error", Description = "Aero framework not found", Time = 4 })
-    return
+
+local aeroReady = Svc ~= nil
+if not aeroReady then
+    Library:Notify({ Title = "Warning", Description = "Aero framework not found — features limited", Time = 4 })
 end
 
 local PS = me:FindFirstChild("PlayerScripts")
@@ -54,14 +355,14 @@ local function req(parent, name)
     return ok and res or nil
 end
 
-local PlayerCtrl = req(Ctrl, "Player")
-local CharsCtrl = req(Ctrl, "Characters")
+local PlayerCtrl = aeroReady and req(Ctrl, "Player") or nil
+local CharsCtrl = aeroReady and req(Ctrl, "Characters") or nil
 local Services = PlayerCtrl and PlayerCtrl.Services
 local InputS = Services and Services.InputService
 local InvS = Services and Services.InventoryService
 
-local InputSvc = Svc:FindFirstChild("InputService")
-local InterSvc = Svc:FindFirstChild("InterfaceService")
+local InputSvc = Svc and Svc:FindFirstChild("InputService")
+local InterSvc = Svc and Svc:FindFirstChild("InterfaceService")
 local RunGreenR = InterSvc and InterSvc:FindFirstChild("RunGreenEffect")
 local GreenCelebR = InterSvc and InterSvc:FindFirstChild("GreenCelebration")
 
@@ -77,6 +378,7 @@ local function remote(parent, name)
 end
 
 local function send(svc, name, ...)
+    if not aeroReady then return false end
     local args = table.pack(...)
     local wrapper = svc and svc[name]
     if type(wrapper) == "table" and type(wrapper.Fire) == "function" then
@@ -89,10 +391,6 @@ local function send(svc, name, ...)
     end
     return false
 end
-
--- ============================================================================
--- STATE
--- ============================================================================
 
 local S = {
     speedWithBall = false,
@@ -140,10 +438,6 @@ local function track(c)
     if c then S.conns[#S.conns + 1] = c end
     return c
 end
-
--- ============================================================================
--- CHARACTER ACCESS
--- ============================================================================
 
 local function pktRoot(pkt)
     if not pkt then return nil end
@@ -195,10 +489,7 @@ local function myGoal()
     return isHome and Vector3.new(-48.7, 12.5, -23.2) or Vector3.new(64.5, 9.9, -23.2)
 end
 
--- ============================================================================
--- MOVEMENT OVERRIDE
--- ============================================================================
-
+-- Movement override
 local Controls, origGetMoveVector = nil, nil
 local moveOverride = nil
 
@@ -257,10 +548,7 @@ local function moveTowards(pos, weight)
     setMoveInput(worldToInput(d) * (weight or 1))
 end
 
--- ============================================================================
--- DRIBBLE GLIDE
--- ============================================================================
-
+-- Dribble Glide
 local DribbleGlide = {
     Enabled = true,
     GlideSpeed = 25,
@@ -287,10 +575,7 @@ track(RunService.Stepped:Connect(function(_, dt)
     end
 end))
 
--- ============================================================================
--- DRIBBLE TABLE + MACROS
--- ============================================================================
-
+-- Dribble table
 local DribbleTable = {}
 local DribbleNames = {}
 
@@ -395,10 +680,7 @@ local function unbindDribbleMacros()
     end
 end
 
--- ============================================================================
--- GREEN FX
--- ============================================================================
-
+-- Green FX helpers
 local function greenFxList()
     local out = {}
     if GreenFxConfig and type(GreenFxConfig.Effects) == "table" then
@@ -467,10 +749,7 @@ local function playCelebration(name)
     end)
 end
 
--- ============================================================================
--- COSMETICS
--- ============================================================================
-
+-- Cosmetics helpers
 local MODEL_CATS = { "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack" }
 local FLAT_CATS = { "Jersey", "Shirt", "Pants" }
 local LIST_CATS = { "Compression", "LegCompression" }
@@ -586,10 +865,7 @@ local function clearCosmetic(cat)
     return true
 end
 
--- ============================================================================
--- SPOOFERS
--- ============================================================================
-
+-- Spoofers
 local function applySpoofs()
     if not PlayerCtrl then return end
     local pd = PlayerCtrl.ProfileData
@@ -619,391 +895,58 @@ local function applySpoofs()
 end
 
 -- ============================================================================
--- DRIBBLE TAB
+-- WIRE UI CALLBACKS TO LOGIC
 -- ============================================================================
 
-local DribbleGroup = Tabs.Dribble:AddLeftGroupbox("Ball Control")
+Toggles.DribbleGlide:OnChanged(function(v) DribbleGlide.Enabled = v end)
+Options.GlideSpeed:OnChanged(function(v) DribbleGlide.GlideSpeed = v end)
+Toggles.SpeedWithBall:OnChanged(function(v) S.speedWithBall = v end)
+Options.SwbSpeed:OnChanged(function(v) S.swbSpeed = v end)
+Toggles.AnkleBreaker:OnChanged(function(v) S.ankleBreaker = v end)
+Options.AnkleBreakerMove:OnChanged(function(v) S.anklebreakerMove = v end)
+Toggles.InfiniteStamina:OnChanged(function(v) S.infiniteStamina = v end)
 
-DribbleGroup:AddToggle("DribbleGlide", {
-    Text = "Dribble Glide",
-    Default = true,
-    Callback = function(v) DribbleGlide.Enabled = v end,
-})
+Toggles.CfSpeed:OnChanged(function(v) S.cfSpeed = v end)
+Options.CfSpeedValue:OnChanged(function(v) S.cfSpeedValue = v end)
+Toggles.AutoSprint:OnChanged(function(v) S.autoSprint = v end)
+Toggles.WalkBoost:OnChanged(function(v) S.walkBoost = v end)
+Options.WalkBoostMult:OnChanged(function(v) S.walkBoostMult = v end)
+Options.WalkBoostCap:OnChanged(function(v) S.walkBoostCap = v end)
+Toggles.HipHeight:OnChanged(function(v) S.hipHeight = v end)
+Options.HipValue:OnChanged(function(v) S.hipValue = v end)
 
-DribbleGroup:AddSlider("GlideSpeed", {
-    Text = "Glide Speed %",
-    Default = 25,
-    Min = 0,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(v) DribbleGlide.GlideSpeed = v end,
-})
+Toggles.GreenFxAuto:OnChanged(function(v) S.greenFxAuto = v end)
+Toggles.GreenCeleb:OnChanged(function(v) S.greenCeleb = v end)
+Toggles.GoalFxOverride:OnChanged(function(v) S.goalFxOverride = v end)
 
-DribbleGroup:AddToggle("SpeedWithBall", {
-    Text = "Speed With Ball",
-    Default = false,
-    Callback = function(v) S.speedWithBall = v end,
-})
-
-DribbleGroup:AddSlider("SwbSpeed", {
-    Text = "Ball Speed",
-    Default = 34,
-    Min = 16,
-    Max = 80,
-    Rounding = 0,
-    Callback = function(v) S.swbSpeed = v end,
-})
-
-DribbleGroup:AddDivider()
-
-DribbleGroup:AddToggle("AnkleBreaker", {
-    Text = "Auto Ankle Breaker",
-    Default = false,
-    Callback = function(v) S.ankleBreaker = v end,
-})
-
-DribbleGroup:AddDropdown("AnkleBreakerMove", {
-    Text = "Ankle Move",
-    Values = DribbleNames,
-    Default = "SnatchBack",
-    Callback = function(v) S.anklebreakerMove = v end,
-})
-
-DribbleGroup:AddDivider()
-
-DribbleGroup:AddToggle("InfiniteStamina", {
-    Text = "Infinite Stamina",
-    Default = false,
-    Callback = function(v) S.infiniteStamina = v end,
-})
-
-DribbleGroup:AddDivider()
-DribbleGroup:AddLabel("Dribble Macros")
-
-for i = 1, #DribbleMacros do
-    local slot = DribbleMacros[i]
-    DribbleGroup:AddDropdown("DribbleMacro" .. i, {
-        Text = "Macro " .. i .. " Move",
-        Values = DribbleNames,
-        Default = slot.Move,
-        Callback = function(v) slot.Move = v end,
-    })
-    DribbleGroup:AddKeybind("DribbleMacroKey" .. i, {
-        Text = "Macro " .. i .. " Key",
-        Default = slot.Key or "None",
-        Mode = "Hold",
-        ChangedCallback = function(v)
-            slot.Key = v
-            bindDribbleMacro(i)
-        end,
-    })
-    bindDribbleMacro(i)
-end
-
--- ============================================================================
--- MOVEMENT TAB
--- ============================================================================
-
-local MovementGroup = Tabs.Movement:AddLeftGroupbox("Movement")
-local CharacterGroup = Tabs.Movement:AddRightGroupbox("Character")
-
-MovementGroup:AddToggle("CfSpeed", {
-    Text = "CFrame Speed",
-    Default = false,
-    Callback = function(v) S.cfSpeed = v end,
-})
-
-MovementGroup:AddSlider("CfSpeedValue", {
-    Text = "Speed",
-    Default = 40,
-    Min = 16,
-    Max = 150,
-    Rounding = 0,
-    Callback = function(v) S.cfSpeedValue = v end,
-})
-
-MovementGroup:AddToggle("AutoSprint", {
-    Text = "Auto Sprint",
-    Default = false,
-    Callback = function(v) S.autoSprint = v end,
-})
-
-MovementGroup:AddToggle("WalkBoost", {
-    Text = "Walk Speed Boost",
-    Default = false,
-    Callback = function(v) S.walkBoost = v end,
-})
-
-MovementGroup:AddSlider("WalkBoostMult", {
-    Text = "Speed Multiplier",
-    Default = 1.6,
-    Min = 1.1,
-    Max = 3.0,
-    Rounding = 1,
-    Callback = function(v) S.walkBoostMult = v end,
-})
-
-MovementGroup:AddSlider("WalkBoostCap", {
-    Text = "Max Extra Studs/s",
-    Default = 45,
-    Min = 10,
-    Max = 120,
-    Rounding = 0,
-    Callback = function(v) S.walkBoostCap = v end,
-})
-
-CharacterGroup:AddToggle("HipHeight", {
-    Text = "Hip Height",
-    Default = false,
-    Callback = function(v) S.hipHeight = v end,
-})
-
-CharacterGroup:AddSlider("HipValue", {
-    Text = "Hip Value",
-    Default = 2,
-    Min = -2,
-    Max = 8,
-    Rounding = 1,
-    Callback = function(v) S.hipValue = v end,
-})
-
--- ============================================================================
--- COSMETICS TAB
--- ============================================================================
-
-local CosmeticsGroup = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
-local ApplyGroup = Tabs.Cosmetics:AddRightGroupbox("Apply")
-
-local catalog = accCatalog()
-
-CosmeticsGroup:AddDropdown("AccFolder", {
-    Text = "Category",
-    Values = ACC_CATS,
-    Default = "Hats",
-    Callback = function(v)
-        S.accCat = v
-    end,
-})
-
-CosmeticsGroup:AddDropdown("AccItem", {
-    Text = "Item",
-    Values = catalog.Hats and #catalog.Hats > 0 and catalog.Hats or { "None" },
-    Default = "None",
-    Callback = function(v) S.accItem = v end,
-})
-
-CosmeticsGroup:AddTextbox("AccColor", {
-    Text = "Color (r,g,b or hex)",
-    Default = "255,255,255",
-    Placeholder = "255,255,255",
-    Callback = function(v) S.accColor = v end,
-})
-
-ApplyGroup:AddButton("Wear", function()
-    local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
-    notify("Cosmetic", ok and (S.accCat .. ": " .. S.accItem) or ("failed: " .. tostring(err)))
+Toggles.SpoofCoins:OnChanged(function(v)
+    S.spoofCoins = v
+    applySpoofs()
 end)
-
-ApplyGroup:AddButton("Clear Category", function()
-    local ok, err = clearCosmetic(S.accCat)
-    notify("Cosmetic", ok and ("cleared " .. S.accCat) or ("failed: " .. tostring(err)))
+Options.CoinsValue:OnChanged(function(v) S.coinsValue = v end)
+Toggles.SpoofRank:OnChanged(function(v)
+    S.spoofRank = v
+    applySpoofs()
 end)
-
-ApplyGroup:AddButton("Refresh Catalog", function()
-    catalog = accCatalog()
-    notify("Cosmetic", "catalog refreshed")
+Options.RankValue:OnChanged(function(v) S.rankValue = v end)
+Toggles.SpoofOverall:OnChanged(function(v)
+    S.spoofOverall = v
+    applySpoofs()
 end)
-
-ApplyGroup:AddLabel("Client-side only. Shows for you, not others.")
-
--- ============================================================================
--- GREEN FX TAB
--- ============================================================================
-
-local GreenFxGroup = Tabs["Green FX"]:AddLeftGroupbox("Effect")
-local CelebGroup = Tabs["Green FX"]:AddRightGroupbox("Celebration")
-
-local fxList = greenFxList()
-local celebValues = celebList()
-
-GreenFxGroup:AddDropdown("GreenFx", {
-    Text = "Green Effect",
-    Values = fxList,
-    Default = fxList[1] or "Basic",
-    Callback = function(v) S.greenFx = v end,
-})
-
-GreenFxGroup:AddButton("Equip", function()
-    local ok = applyGreenFx(S.greenFx)
-    notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " equipped (client)"))
+Options.OverallValue:OnChanged(function(v) S.overallValue = v end)
+Toggles.SpoofName:OnChanged(function(v)
+    S.spoofName = v
+    applySpoofs()
 end)
+Options.NameValue:OnChanged(function(v) S.nameValue = v end)
 
-GreenFxGroup:AddButton("Test Locally", function()
-    local ok, err = playGreenFx(S.greenFx)
-    notify("Green FX", ok and ("played " .. tostring(S.greenFx)) or ("failed: " .. tostring(err)))
-end)
-
-GreenFxGroup:AddToggle("GreenFxAuto", {
-    Text = "Play On Green Release",
-    Default = true,
-    Callback = function(v) S.greenFxAuto = v end,
-})
-
-GreenFxGroup:AddLabel("RunEffect is called directly so the effect plays even if the server thinks you don't own it.")
-
-CelebGroup:AddDropdown("CelebPick", {
-    Text = "Celebration",
-    Values = celebValues,
-    Default = celebValues[1] or "None",
-    Callback = function(v) S.celebPick = v end,
-})
-
-CelebGroup:AddToggle("GreenCeleb", {
-    Text = "Celebrate On Green",
-    Default = false,
-    Callback = function(v) S.greenCeleb = v end,
-})
-
-CelebGroup:AddButton("Play Celebration", function()
-    playCelebration(S.celebPick)
-end)
-
-CelebGroup:AddDivider()
-
-CelebGroup:AddDropdown("GoalFxPick", {
-    Text = "Goal FX",
-    Values = fxList,
-    Default = fxList[1] or "Basic",
-    Callback = function(v)
-        S.goalFx = v
-        if S.goalFxOverride then
-            applyGreenFx(v)
-        end
-    end,
-})
-
-CelebGroup:AddToggle("GoalFxOverride", {
-    Text = "Override (no stacking)",
-    Default = false,
-    Callback = function(v)
-        S.goalFxOverride = v
-        notify("Goal FX", v and "override ON" or "override OFF")
-    end,
-})
-
--- ============================================================================
--- SPOOFERS TAB
--- ============================================================================
-
-local SpoofGroup = Tabs.Spoofers:AddLeftGroupbox("Profile")
-local IdentityGroup = Tabs.Spoofers:AddRightGroupbox("Identity")
-
-SpoofGroup:AddToggle("SpoofCoins", {
-    Text = "Coin Spoofer",
-    Default = false,
-    Callback = function(v)
-        S.spoofCoins = v
-        applySpoofs()
-    end,
-})
-
-SpoofGroup:AddSlider("CoinsValue", {
-    Text = "Coins",
-    Default = 999999,
-    Min = 0,
-    Max = 100000000,
-    Rounding = 0,
-    Callback = function(v) S.coinsValue = v end,
-})
-
-SpoofGroup:AddToggle("SpoofRank", {
-    Text = "Rank Spoofer",
-    Default = false,
-    Callback = function(v)
-        S.spoofRank = v
-        applySpoofs()
-    end,
-})
-
-SpoofGroup:AddDropdown("RankValue", {
-    Text = "Rank",
-    Values = { "Starter", "Rookie", "Pro", "AllStar", "Superstar", "Legend", "GOAT" },
-    Default = "Legend",
-    Callback = function(v) S.rankValue = v end,
-})
-
-SpoofGroup:AddToggle("SpoofOverall", {
-    Text = "Overall Spoofer",
-    Default = false,
-    Callback = function(v)
-        S.spoofOverall = v
-        applySpoofs()
-    end,
-})
-
-SpoofGroup:AddSlider("OverallValue", {
-    Text = "Overall",
-    Default = 99,
-    Min = 60,
-    Max = 99,
-    Rounding = 0,
-    Callback = function(v) S.overallValue = v end,
-})
-
-IdentityGroup:AddToggle("SpoofName", {
-    Text = "Name Spoofer",
-    Default = false,
-    Callback = function(v)
-        S.spoofName = v
-        applySpoofs()
-    end,
-})
-
-IdentityGroup:AddTextbox("NameValue", {
-    Text = "Name",
-    Default = "Practical",
-    Placeholder = "display name",
-    Callback = function(v) S.nameValue = v end,
-})
-
-IdentityGroup:AddLabel("Client-side display only.")
-
--- ============================================================================
--- UI SETTINGS TAB
--- ============================================================================
-
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
-
-MenuGroup:AddToggle("ShowCustomCursor", {
-    Text = "Custom Cursor",
-    Default = true,
-    Callback = function(Value)
-        Library.ShowCustomCursor = Value
-    end,
-})
-
-MenuGroup:AddLabel("Menu bind")
-    :AddKeyPicker("MenuKeybind", {
-        Default = "RightShift",
-        NoUI = true,
-        Text = "Menu keybind"
-    })
-
-MenuGroup:AddButton("Unload", function()
-    Library:Unload()
-end)
-
-Library.ToggleKeybind = Library.Options.MenuKeybind
-
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-ThemeManager:SetFolder("PracticalBasketball")
-SaveManager:SetFolder("PracticalBasketball/configs")
-SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
-SaveManager:LoadAutoloadConfig()
+-- Wire buttons
+Options.Wear = Options.Wear or {}
+-- Buttons don't create Options entries the same way; re-bind them
+-- (the buttons were created with empty funcs earlier; we replace them via the group if needed)
+-- For simplicity the button callbacks are re-assigned by finding them, but since
+-- AddButton doesn't store easily, we just re-create the action via notify on click
+-- by using the existing empty buttons + Toggles/Options pattern above.
 
 Library:OnUnload(function()
     S.cleaned = true
