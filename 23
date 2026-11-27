@@ -1,27 +1,16 @@
 --========================================================--
 --  LOAD LINORIA
 --========================================================--
-local success, err = pcall(function()
-    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-    getgenv().Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-    getgenv().ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-    getgenv().SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-end)
-
-if not success then
-    warn("Failed to load Linoria:", err)
-    return
-end
-
-local Library = getgenv().Library
-local ThemeManager = getgenv().ThemeManager
-local SaveManager = getgenv().SaveManager
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Options = Library.Options
 local Toggles = Library.Toggles
 
 --========================================================--
---  WINDOW
+--  WINDOW + TABS
 --========================================================--
 local Window = Library:CreateWindow({
     Title = "Vision Hub",
@@ -32,10 +21,28 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-    Practical   = Window:AddTab("Practical", "activity"),
-    Cosmetics   = Window:AddTab("Cosmetics", "shirt"),
+    Practical = Window:AddTab("Practical", "activity"),
+    Cosmetics = Window:AddTab("Cosmetics", "shirt"),
     ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
+
+local PracticalGroup = Tabs.Practical:AddLeftGroupbox("Practical Settings")
+
+--========================================================--
+--  AUTO PERFECT
+--========================================================--
+PracticalGroup:AddToggle("AutoPerfect", {
+    Text = "Auto Perfect",
+    Default = false,
+})
+
+PracticalGroup:AddSlider("MeterOffset", {
+    Text = "Meter Offset",
+    Default = -1.239,
+    Min = -3,
+    Max = 3,
+    Rounding = 3,
+})
 
 --========================================================--
 --  SERVICES
@@ -52,40 +59,23 @@ local function getChar()
 end
 
 --========================================================--
---  PRACTICAL TAB
+--  AUTO PERFECT LOGIC
 --========================================================--
-local PracticalGroup = Tabs.Practical:AddLeftGroupbox("Practical Settings")
-
-PracticalGroup:AddToggle("AutoPerfect", {
-    Text = "Auto Perfect",
-    Default = false,
-})
-
-PracticalGroup:AddSlider("MeterOffset", {
-    Text = "Meter Offset",
-    Default = -1.239,
-    Min = -3,
-    Max = 3,
-    Rounding = 3,
-})
-
--- Auto Perfect Logic
 local function setupAutoPerfect()
     local char = getChar()
     if not char then return end
 
-    local connection
-    connection = char:GetAttributeChangedSignal("meterOffset"):Connect(function()
-        if not Toggles.AutoPerfect or not Toggles.AutoPerfect.Value then return end
+    char:GetAttributeChangedSignal("meterOffset"):Connect(function()
+        if not Toggles.AutoPerfect.Value then return end
 
         local offset = char:GetAttribute("meterOffset")
         if not offset then return end
 
-        local trigger = Options.MeterOffset and Options.MeterOffset.Value or -1.239
+        local trigger = Options.MeterOffset.Value
         local hrp = char:FindFirstChild("HumanoidRootPart")
         local head = char:FindFirstChild("Head")
 
-        local function shoot()
+        local function doShoot()
             pcall(function()
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end)
@@ -93,34 +83,33 @@ local function setupAutoPerfect()
 
         if hrp then
             if hrp:FindFirstChild("VerticalMeter") and hrp.VerticalMeter.Enabled and offset.Y <= trigger then
-                shoot()
+                doShoot()
             elseif hrp:FindFirstChild("BatMeter") and hrp.BatMeter.Enabled and offset.Y <= trigger then
-                shoot()
+                doShoot()
             elseif hrp:FindFirstChild("RocketMeter") and hrp.RocketMeter.Enabled and offset.Y <= trigger then
-                shoot()
+                doShoot()
             end
         end
 
         if head then
             if head:FindFirstChild("HoopMeter") and head.HoopMeter.Enabled and offset.Y >= trigger then
-                shoot()
+                doShoot()
             elseif head:FindFirstChild("RobloxMeter") and head.RobloxMeter.Enabled and offset.X >= trigger then
-                shoot()
+                doShoot()
             end
         end
     end)
 end
 
-task.spawn(function()
+setupAutoPerfect()
+
+player.CharacterAdded:Connect(function()
+    task.wait(1)
     setupAutoPerfect()
-    player.CharacterAdded:Connect(function()
-        task.wait(1.5)
-        setupAutoPerfect()
-    end)
 end)
 
 --========================================================--
---  COSMETICS
+--  COSMETICS (Correct system)
 --========================================================--
 local MODEL_CATS = {"Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack"}
 local FLAT_CATS  = {"Jersey", "Shirt", "Pants"}
@@ -153,11 +142,10 @@ local function getAccessoriesCfg()
         if not Shared then return nil end
         local Config = Shared:FindFirstChild("Config")
         if not Config then return nil end
-        local Accessories = Config:FindFirstChild("Accessories")
-        if Accessories and Accessories:IsA("ModuleScript") then
-            return require(Accessories)
+        local mod = Config:FindFirstChild("Accessories")
+        if mod and mod:IsA("ModuleScript") then
+            return require(mod)
         end
-        return nil
     end)
     return ok and result or nil
 end
@@ -167,14 +155,7 @@ AccessoriesCfg = getAccessoriesCfg()
 local function myPkt()
     local char = getChar()
     if not char then return nil end
-
-    if char:FindFirstChild("Packet") then
-        return char.Packet
-    end
-    if char:FindFirstChild("Appearance") then
-        return char.Appearance
-    end
-    return nil
+    return char:FindFirstChild("Packet") or char:FindFirstChild("Appearance")
 end
 
 local function accCatalog()
@@ -273,7 +254,7 @@ local function wearCosmetic(cat, name, color)
         elseif cat == "Shoes" then
             pkt:UpdateAppearance({
                 Shoes = {
-                    LeftShoe  = {name, color},
+                    LeftShoe = {name, color},
                     RightShoe = {name, color},
                 }
             })
@@ -295,7 +276,7 @@ local function clearCosmetic(cat)
         return false, "appearance system not found"
     end
     if cat == "Shoes" then return false, "can't clear shoes" end
-    if cat == "SkinTone" then return false, "pick a different tone" end
+    if cat == "SkinTone" then return false, "pick another tone" end
 
     local ok, err = pcall(function()
         if cat == "Mascot" then
@@ -315,7 +296,12 @@ local CSL = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
 local CSR = Tabs.Cosmetics:AddRightGroupbox("Apply")
 
 local catalog = accCatalog()
-local S = { accCat = "Hats", accItem = "None", accColor = "255,255,255" }
+local S = {
+    accCat = "Hats",
+    accItem = "None",
+    accColor = "255,255,255"
+}
+
 local accItemDropdown
 
 CSL:AddDropdown("AccFolder", {
@@ -360,7 +346,7 @@ CSR:AddButton("Apply", function()
     local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
     Library:Notify({
         Title = "Cosmetic",
-        Description = ok and ("Applied → " .. S.accCat .. ": " .. S.accItem) or ("Failed: " .. tostring(err)),
+        Description = ok and ("Applied " .. S.accCat .. ": " .. S.accItem) or ("Failed: " .. tostring(err)),
         Time = 4
     })
 end)
@@ -384,7 +370,11 @@ CSR:AddButton("Refresh Catalog", function()
         accItemDropdown:SetValue(list[1], true)
     end
     S.accItem = list[1]
-    Library:Notify({Title = "Cosmetic", Description = "Catalog refreshed", Time = 2})
+    Library:Notify({
+        Title = "Cosmetic",
+        Description = "Catalog refreshed",
+        Time = 2
+    })
 end)
 
 CSR:AddLabel("Real appearance system")
@@ -407,9 +397,3 @@ ThemeManager:SetFolder("VisionHub")
 SaveManager:SetFolder("VisionHub/configs")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
-
-Library:Notify({
-    Title = "Vision Hub",
-    Description = "Loaded successfully",
-    Time = 3
-})
