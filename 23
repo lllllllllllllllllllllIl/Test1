@@ -87,11 +87,13 @@ for i = 1, 4 do
         Values = { "Crossover", "Hesitation", "Tween", "BehindBack", "Spin", "SnatchBack" },
         Default = "Crossover",
     })
-    DribbleGroup:AddKeybind("DribbleMacroKey" .. i, {
-        Text = "Macro " .. i .. " Key",
-        Default = "None",
-        Mode = "Hold",
-    })
+    DribbleGroup:AddLabel("Macro " .. i .. " Key")
+        :AddKeyPicker("DribbleMacroKey" .. i, {
+            Default = "None",
+            Mode = "Hold",
+            Text = "Macro " .. i,
+            NoUI = false,
+        })
 end
 
 -- ============================================================================
