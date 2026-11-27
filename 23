@@ -26,6 +26,9 @@ local Tabs = {
     ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
+-- Functions table (filled in later so buttons can call them)
+local F = {}
+
 -- ============================================================================
 -- DRIBBLE TAB
 -- ============================================================================
@@ -176,23 +179,31 @@ CosmeticsGroup:AddDropdown("AccItem", {
 CosmeticsGroup:AddButton("Wear", function()
     local cat = Options.AccFolder.Value
     local item = Options.AccItem.Value
-    local ok, err = wearCosmetic(cat, item)
-    notify("Cosmetic", ok and (tostring(cat) .. ": " .. tostring(item)) or ("failed: " .. tostring(err)))
+    if F.wearCosmetic then
+        local ok, err = F.wearCosmetic(cat, item)
+        notify("Cosmetic", ok and (tostring(cat) .. ": " .. tostring(item)) or ("failed: " .. tostring(err)))
+    else
+        notify("Cosmetic", "not ready")
+    end
 end)
 CosmeticsGroup:AddButton("Clear Category", function()
     local cat = Options.AccFolder.Value
-    local ok, err = clearCosmetic(cat)
-    notify("Cosmetic", ok and ("cleared " .. tostring(cat)) or ("failed: " .. tostring(err)))
+    if F.clearCosmetic then
+        local ok, err = F.clearCosmetic(cat)
+        notify("Cosmetic", ok and ("cleared " .. tostring(cat)) or ("failed: " .. tostring(err)))
+    end
 end)
 CosmeticsGroup:AddButton("Refresh Catalog", function()
     local cat = Options.AccFolder.Value
-    local catalog = accCatalog()
-    local list = catalog[cat] or { "None" }
-    if #list == 0 then list = { "None" } end
-    if Options.AccItem and Options.AccItem.SetValues then
-        Options.AccItem:SetValues(list)
+    if F.accCatalog then
+        local catalog = F.accCatalog()
+        local list = catalog[cat] or { "None" }
+        if #list == 0 then list = { "None" } end
+        if Options.AccItem and Options.AccItem.SetValues then
+            Options.AccItem:SetValues(list)
+        end
+        notify("Cosmetic", "catalog refreshed")
     end
-    notify("Cosmetic", "catalog refreshed")
 end)
 CosmeticsGroup:AddLabel("Client-side only. Shows for you, not others.")
 
@@ -211,13 +222,17 @@ GreenFxGroup:AddDropdown("GreenFx", {
 
 GreenFxGroup:AddButton("Equip", function()
     local name = Options.GreenFx.Value
-    local ok = applyGreenFx(name)
-    notify("Green FX", tostring(name) .. (ok and " equipped" or " equipped (client)"))
+    if F.applyGreenFx then
+        local ok = F.applyGreenFx(name)
+        notify("Green FX", tostring(name) .. (ok and " equipped" or " equipped (client)"))
+    end
 end)
 GreenFxGroup:AddButton("Test Locally", function()
     local name = Options.GreenFx.Value
-    local ok, err = playGreenFx(name)
-    notify("Green FX", ok and ("played " .. tostring(name)) or ("failed: " .. tostring(err)))
+    if F.playGreenFx then
+        local ok, err = F.playGreenFx(name)
+        notify("Green FX", ok and ("played " .. tostring(name)) or ("failed: " .. tostring(err)))
+    end
 end)
 
 GreenFxGroup:AddToggle("GreenFxAuto", {
@@ -239,7 +254,9 @@ CelebGroup:AddToggle("GreenCeleb", {
 })
 
 CelebGroup:AddButton("Play Celebration", function()
-    playCelebration(Options.CelebPick.Value)
+    if F.playCelebration then
+        F.playCelebration(Options.CelebPick.Value)
+    end
 end)
 CelebGroup:AddDivider()
 
@@ -946,6 +963,16 @@ local function clearCosmetic(cat)
     if not ok then return false, tostring(err) end
     return true
 end
+
+-- Assign functions to F table so buttons can call them
+F.wearCosmetic = wearCosmetic
+F.clearCosmetic = clearCosmetic
+F.accCatalog = accCatalog
+F.applyGreenFx = applyGreenFx
+F.playGreenFx = playGreenFx
+F.playCelebration = playCelebration
+F.greenFxList = greenFxList
+F.celebList = celebList
 
 -- Spoofers
 local function applySpoofs()
