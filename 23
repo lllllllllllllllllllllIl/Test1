@@ -1,4 +1,4 @@
--- Practical Basketball - Obsidian GUI
+-- Practical Basketball Obsidian GUI
 -- UI is built first (same order as the working Vision Hub script)
 -- Game logic comes after
 
@@ -174,7 +174,7 @@ CosmeticsGroup:AddDropdown("AccItem", {
     Default = "None",
 })
 
-CosmeticsGroup:AddTextbox("AccColor", {
+CosmeticsGroup:AddInput("AccColor", {
     Text = "Color (r,g,b or hex)",
     Default = "255,255,255",
     Placeholder = "255,255,255",
@@ -282,7 +282,7 @@ IdentityGroup:AddToggle("SpoofName", {
     Default = false,
 })
 
-IdentityGroup:AddTextbox("NameValue", {
+IdentityGroup:AddInput("NameValue", {
     Text = "Name",
     Default = "Practical",
     Placeholder = "display name",
