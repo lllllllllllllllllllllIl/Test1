@@ -1,20 +1,29 @@
--- Practical Basketball - Obsidian GUI (Full Logic)
--- Tabs created one at a time, features added immediately after each tab
+-- Practical Basketball - Obsidian GUI
+-- Structured the same way as the working Vision Hub example
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-
 local Options = Library.Options
 local Toggles = Library.Toggles
 
 local Window = Library:CreateWindow({
     Title = "Practical Basketball",
-    Footer = "Obsidian",
+    Footer = "Angel Hub",
+    Icon = 95816097006870,
     NotifySide = "Right",
-    ShowCustomCursor = false,
+    ShowCustomCursor = true,
 })
+
+local Tabs = {
+    Dribble = Window:AddTab("Dribble", "activity"),
+    Movement = Window:AddTab("Movement", "move"),
+    Cosmetics = Window:AddTab("Cosmetics", "shirt"),
+    ["Green FX"] = Window:AddTab("Green FX", "sparkles"),
+    Spoofers = Window:AddTab("Spoofers", "user"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+}
 
 -- ============================================================================
 -- SERVICES
@@ -148,25 +157,11 @@ local function pktAttr(pkt, name)
     return pkt.attributes[name]
 end
 
-local function pktHasBall(pkt)
-    local b = pktAttr(pkt, "Basketball")
-    return b ~= nil and b ~= false
-end
-
 local function setAttr(pkt, name, value)
     if not pkt then return end
     if type(pkt.attributes) == "table" then pkt.attributes[name] = value end
     local m = pkt.model
     if m then pcall(function() m:SetAttribute(name, value) end) end
-end
-
-local function allPackets()
-    local out = {}
-    if not CharsCtrl or type(CharsCtrl.Characters) ~= "table" then return out end
-    for _, pkt in pairs(CharsCtrl.Characters) do
-        if type(pkt) == "table" then out[#out + 1] = pkt end
-    end
-    return out
 end
 
 local function myPkt()
@@ -627,16 +622,15 @@ end
 -- DRIBBLE TAB
 -- ============================================================================
 
-local DribbleTab = Window:AddTab("Dribble", "user")
-local DribbleLeft = DribbleTab:AddGroupbox({ Side = "Left", Name = "Ball Control" })
+local DribbleGroup = Tabs.Dribble:AddLeftGroupbox("Ball Control")
 
-DribbleLeft:AddToggle("DribbleGlide", {
+DribbleGroup:AddToggle("DribbleGlide", {
     Text = "Dribble Glide",
     Default = true,
     Callback = function(v) DribbleGlide.Enabled = v end,
 })
 
-DribbleLeft:AddSlider("GlideSpeed", {
+DribbleGroup:AddSlider("GlideSpeed", {
     Text = "Glide Speed %",
     Default = 25,
     Min = 0,
@@ -645,13 +639,13 @@ DribbleLeft:AddSlider("GlideSpeed", {
     Callback = function(v) DribbleGlide.GlideSpeed = v end,
 })
 
-DribbleLeft:AddToggle("SpeedWithBall", {
+DribbleGroup:AddToggle("SpeedWithBall", {
     Text = "Speed With Ball",
     Default = false,
     Callback = function(v) S.speedWithBall = v end,
 })
 
-DribbleLeft:AddSlider("SwbSpeed", {
+DribbleGroup:AddSlider("SwbSpeed", {
     Text = "Ball Speed",
     Default = 34,
     Min = 16,
@@ -660,41 +654,41 @@ DribbleLeft:AddSlider("SwbSpeed", {
     Callback = function(v) S.swbSpeed = v end,
 })
 
-DribbleLeft:AddDivider()
+DribbleGroup:AddDivider()
 
-DribbleLeft:AddToggle("AnkleBreaker", {
+DribbleGroup:AddToggle("AnkleBreaker", {
     Text = "Auto Ankle Breaker",
     Default = false,
     Callback = function(v) S.ankleBreaker = v end,
 })
 
-DribbleLeft:AddDropdown("AnkleBreakerMove", {
+DribbleGroup:AddDropdown("AnkleBreakerMove", {
     Text = "Ankle Move",
     Values = DribbleNames,
     Default = "SnatchBack",
     Callback = function(v) S.anklebreakerMove = v end,
 })
 
-DribbleLeft:AddDivider()
+DribbleGroup:AddDivider()
 
-DribbleLeft:AddToggle("InfiniteStamina", {
+DribbleGroup:AddToggle("InfiniteStamina", {
     Text = "Infinite Stamina",
     Default = false,
     Callback = function(v) S.infiniteStamina = v end,
 })
 
-DribbleLeft:AddDivider()
-DribbleLeft:AddLabel("Dribble Macros")
+DribbleGroup:AddDivider()
+DribbleGroup:AddLabel("Dribble Macros")
 
 for i = 1, #DribbleMacros do
     local slot = DribbleMacros[i]
-    DribbleLeft:AddDropdown("DribbleMacro" .. i, {
+    DribbleGroup:AddDropdown("DribbleMacro" .. i, {
         Text = "Macro " .. i .. " Move",
         Values = DribbleNames,
         Default = slot.Move,
         Callback = function(v) slot.Move = v end,
     })
-    DribbleLeft:AddKeybind("DribbleMacroKey" .. i, {
+    DribbleGroup:AddKeybind("DribbleMacroKey" .. i, {
         Text = "Macro " .. i .. " Key",
         Default = slot.Key or "None",
         Mode = "Hold",
@@ -710,17 +704,16 @@ end
 -- MOVEMENT TAB
 -- ============================================================================
 
-local MovementTab = Window:AddTab("Movement", "move")
-local MoveLeft = MovementTab:AddGroupbox({ Side = "Left", Name = "Movement" })
-local MoveRight = MovementTab:AddGroupbox({ Side = "Right", Name = "Character" })
+local MovementGroup = Tabs.Movement:AddLeftGroupbox("Movement")
+local CharacterGroup = Tabs.Movement:AddRightGroupbox("Character")
 
-MoveLeft:AddToggle("CfSpeed", {
+MovementGroup:AddToggle("CfSpeed", {
     Text = "CFrame Speed",
     Default = false,
     Callback = function(v) S.cfSpeed = v end,
 })
 
-MoveLeft:AddSlider("CfSpeedValue", {
+MovementGroup:AddSlider("CfSpeedValue", {
     Text = "Speed",
     Default = 40,
     Min = 16,
@@ -729,19 +722,19 @@ MoveLeft:AddSlider("CfSpeedValue", {
     Callback = function(v) S.cfSpeedValue = v end,
 })
 
-MoveLeft:AddToggle("AutoSprint", {
+MovementGroup:AddToggle("AutoSprint", {
     Text = "Auto Sprint",
     Default = false,
     Callback = function(v) S.autoSprint = v end,
 })
 
-MoveLeft:AddToggle("WalkBoost", {
+MovementGroup:AddToggle("WalkBoost", {
     Text = "Walk Speed Boost",
     Default = false,
     Callback = function(v) S.walkBoost = v end,
 })
 
-MoveLeft:AddSlider("WalkBoostMult", {
+MovementGroup:AddSlider("WalkBoostMult", {
     Text = "Speed Multiplier",
     Default = 1.6,
     Min = 1.1,
@@ -750,7 +743,7 @@ MoveLeft:AddSlider("WalkBoostMult", {
     Callback = function(v) S.walkBoostMult = v end,
 })
 
-MoveLeft:AddSlider("WalkBoostCap", {
+MovementGroup:AddSlider("WalkBoostCap", {
     Text = "Max Extra Studs/s",
     Default = 45,
     Min = 10,
@@ -759,13 +752,13 @@ MoveLeft:AddSlider("WalkBoostCap", {
     Callback = function(v) S.walkBoostCap = v end,
 })
 
-MoveRight:AddToggle("HipHeight", {
+CharacterGroup:AddToggle("HipHeight", {
     Text = "Hip Height",
     Default = false,
     Callback = function(v) S.hipHeight = v end,
 })
 
-MoveRight:AddSlider("HipValue", {
+CharacterGroup:AddSlider("HipValue", {
     Text = "Hip Value",
     Default = 2,
     Min = -2,
@@ -778,13 +771,12 @@ MoveRight:AddSlider("HipValue", {
 -- COSMETICS TAB
 -- ============================================================================
 
-local CosmeticsTab = Window:AddTab("Cosmetics", "shirt")
-local CosLeft = CosmeticsTab:AddGroupbox({ Side = "Left", Name = "Catalog" })
-local CosRight = CosmeticsTab:AddGroupbox({ Side = "Right", Name = "Apply" })
+local CosmeticsGroup = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
+local ApplyGroup = Tabs.Cosmetics:AddRightGroupbox("Apply")
 
 local catalog = accCatalog()
 
-CosLeft:AddDropdown("AccFolder", {
+CosmeticsGroup:AddDropdown("AccFolder", {
     Text = "Category",
     Values = ACC_CATS,
     Default = "Hats",
@@ -793,109 +785,92 @@ CosLeft:AddDropdown("AccFolder", {
     end,
 })
 
-CosLeft:AddDropdown("AccItem", {
+CosmeticsGroup:AddDropdown("AccItem", {
     Text = "Item",
     Values = catalog.Hats and #catalog.Hats > 0 and catalog.Hats or { "None" },
     Default = "None",
     Callback = function(v) S.accItem = v end,
 })
 
-CosLeft:AddTextbox("AccColor", {
+CosmeticsGroup:AddTextbox("AccColor", {
     Text = "Color (r,g,b or hex)",
     Default = "255,255,255",
     Placeholder = "255,255,255",
     Callback = function(v) S.accColor = v end,
 })
 
-CosRight:AddButton({
-    Text = "Wear",
-    Func = function()
-        local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
-        notify("Cosmetic", ok and (S.accCat .. ": " .. S.accItem) or ("failed: " .. tostring(err)))
-    end,
-})
+ApplyGroup:AddButton("Wear", function()
+    local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
+    notify("Cosmetic", ok and (S.accCat .. ": " .. S.accItem) or ("failed: " .. tostring(err)))
+end)
 
-CosRight:AddButton({
-    Text = "Clear Category",
-    Func = function()
-        local ok, err = clearCosmetic(S.accCat)
-        notify("Cosmetic", ok and ("cleared " .. S.accCat) or ("failed: " .. tostring(err)))
-    end,
-})
+ApplyGroup:AddButton("Clear Category", function()
+    local ok, err = clearCosmetic(S.accCat)
+    notify("Cosmetic", ok and ("cleared " .. S.accCat) or ("failed: " .. tostring(err)))
+end)
 
-CosRight:AddButton({
-    Text = "Refresh Catalog",
-    Func = function()
-        catalog = accCatalog()
-        notify("Cosmetic", "catalog refreshed")
-    end,
-})
+ApplyGroup:AddButton("Refresh Catalog", function()
+    catalog = accCatalog()
+    notify("Cosmetic", "catalog refreshed")
+end)
 
-CosRight:AddLabel("Client-side only. Shows for you, not others.")
+ApplyGroup:AddLabel("Client-side only. Shows for you, not others.")
 
 -- ============================================================================
 -- GREEN FX TAB
 -- ============================================================================
 
-local GreenFxTab = Window:AddTab("Green FX", "sparkles")
-local GfxLeft = GreenFxTab:AddGroupbox({ Side = "Left", Name = "Effect" })
-local GfxRight = GreenFxTab:AddGroupbox({ Side = "Right", Name = "Celebration" })
+local GreenFxGroup = Tabs["Green FX"]:AddLeftGroupbox("Effect")
+local CelebGroup = Tabs["Green FX"]:AddRightGroupbox("Celebration")
 
 local fxList = greenFxList()
 local celebValues = celebList()
 
-GfxLeft:AddDropdown("GreenFx", {
+GreenFxGroup:AddDropdown("GreenFx", {
     Text = "Green Effect",
     Values = fxList,
     Default = fxList[1] or "Basic",
     Callback = function(v) S.greenFx = v end,
 })
 
-GfxLeft:AddButton({
-    Text = "Equip",
-    Func = function()
-        local ok = applyGreenFx(S.greenFx)
-        notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " equipped (client)"))
-    end,
-})
+GreenFxGroup:AddButton("Equip", function()
+    local ok = applyGreenFx(S.greenFx)
+    notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " equipped (client)"))
+end)
 
-GfxLeft:AddButton({
-    Text = "Test Locally",
-    Func = function()
-        local ok, err = playGreenFx(S.greenFx)
-        notify("Green FX", ok and ("played " .. tostring(S.greenFx)) or ("failed: " .. tostring(err)))
-    end,
-})
+GreenFxGroup:AddButton("Test Locally", function()
+    local ok, err = playGreenFx(S.greenFx)
+    notify("Green FX", ok and ("played " .. tostring(S.greenFx)) or ("failed: " .. tostring(err)))
+end)
 
-GfxLeft:AddToggle("GreenFxAuto", {
+GreenFxGroup:AddToggle("GreenFxAuto", {
     Text = "Play On Green Release",
     Default = true,
     Callback = function(v) S.greenFxAuto = v end,
 })
 
-GfxLeft:AddLabel("RunEffect is called directly so the effect plays even if the server thinks you don't own it.")
+GreenFxGroup:AddLabel("RunEffect is called directly so the effect plays even if the server thinks you don't own it.")
 
-GfxRight:AddDropdown("CelebPick", {
+CelebGroup:AddDropdown("CelebPick", {
     Text = "Celebration",
     Values = celebValues,
     Default = celebValues[1] or "None",
     Callback = function(v) S.celebPick = v end,
 })
 
-GfxRight:AddToggle("GreenCeleb", {
+CelebGroup:AddToggle("GreenCeleb", {
     Text = "Celebrate On Green",
     Default = false,
     Callback = function(v) S.greenCeleb = v end,
 })
 
-GfxRight:AddButton({
-    Text = "Play Celebration",
-    Func = function() playCelebration(S.celebPick) end,
-})
+CelebGroup:AddButton("Play Celebration", function()
+    playCelebration(S.celebPick)
+end)
 
-GfxRight:AddDivider()
+CelebGroup:AddDivider()
 
-GfxRight:AddDropdown("GoalFxPick", {
+CelebGroup:AddDropdown("GoalFxPick", {
     Text = "Goal FX",
     Values = fxList,
     Default = fxList[1] or "Basic",
@@ -907,7 +882,7 @@ GfxRight:AddDropdown("GoalFxPick", {
     end,
 })
 
-GfxRight:AddToggle("GoalFxOverride", {
+CelebGroup:AddToggle("GoalFxOverride", {
     Text = "Override (no stacking)",
     Default = false,
     Callback = function(v)
@@ -920,11 +895,10 @@ GfxRight:AddToggle("GoalFxOverride", {
 -- SPOOFERS TAB
 -- ============================================================================
 
-local SpoofersTab = Window:AddTab("Spoofers", "user")
-local SpoofLeft = SpoofersTab:AddGroupbox({ Side = "Left", Name = "Profile" })
-local SpoofRight = SpoofersTab:AddGroupbox({ Side = "Right", Name = "Identity" })
+local SpoofGroup = Tabs.Spoofers:AddLeftGroupbox("Profile")
+local IdentityGroup = Tabs.Spoofers:AddRightGroupbox("Identity")
 
-SpoofLeft:AddToggle("SpoofCoins", {
+SpoofGroup:AddToggle("SpoofCoins", {
     Text = "Coin Spoofer",
     Default = false,
     Callback = function(v)
@@ -933,7 +907,7 @@ SpoofLeft:AddToggle("SpoofCoins", {
     end,
 })
 
-SpoofLeft:AddSlider("CoinsValue", {
+SpoofGroup:AddSlider("CoinsValue", {
     Text = "Coins",
     Default = 999999,
     Min = 0,
@@ -942,7 +916,7 @@ SpoofLeft:AddSlider("CoinsValue", {
     Callback = function(v) S.coinsValue = v end,
 })
 
-SpoofLeft:AddToggle("SpoofRank", {
+SpoofGroup:AddToggle("SpoofRank", {
     Text = "Rank Spoofer",
     Default = false,
     Callback = function(v)
@@ -951,14 +925,14 @@ SpoofLeft:AddToggle("SpoofRank", {
     end,
 })
 
-SpoofLeft:AddDropdown("RankValue", {
+SpoofGroup:AddDropdown("RankValue", {
     Text = "Rank",
     Values = { "Starter", "Rookie", "Pro", "AllStar", "Superstar", "Legend", "GOAT" },
     Default = "Legend",
     Callback = function(v) S.rankValue = v end,
 })
 
-SpoofLeft:AddToggle("SpoofOverall", {
+SpoofGroup:AddToggle("SpoofOverall", {
     Text = "Overall Spoofer",
     Default = false,
     Callback = function(v)
@@ -967,7 +941,7 @@ SpoofLeft:AddToggle("SpoofOverall", {
     end,
 })
 
-SpoofLeft:AddSlider("OverallValue", {
+SpoofGroup:AddSlider("OverallValue", {
     Text = "Overall",
     Default = 99,
     Min = 60,
@@ -976,7 +950,7 @@ SpoofLeft:AddSlider("OverallValue", {
     Callback = function(v) S.overallValue = v end,
 })
 
-SpoofRight:AddToggle("SpoofName", {
+IdentityGroup:AddToggle("SpoofName", {
     Text = "Name Spoofer",
     Default = false,
     Callback = function(v)
@@ -985,36 +959,41 @@ SpoofRight:AddToggle("SpoofName", {
     end,
 })
 
-SpoofRight:AddTextbox("NameValue", {
+IdentityGroup:AddTextbox("NameValue", {
     Text = "Name",
     Default = "Practical",
     Placeholder = "display name",
     Callback = function(v) S.nameValue = v end,
 })
 
-SpoofRight:AddLabel("Client-side display only.")
+IdentityGroup:AddLabel("Client-side display only.")
 
 -- ============================================================================
 -- UI SETTINGS TAB
 -- ============================================================================
 
-local UISettingsTab = Window:AddTab("UI Settings", "settings")
-local MenuGroup = UISettingsTab:AddGroupbox({ Side = "Left", Name = "Menu" })
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 
-MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
-    Default = "RightShift",
-    NoUI = true,
-    Text = "Menu keybind",
-})
-
-MenuGroup:AddButton({
-    Text = "Unload",
-    Func = function()
-        Library:Unload()
+MenuGroup:AddToggle("ShowCustomCursor", {
+    Text = "Custom Cursor",
+    Default = true,
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
     end,
 })
 
-Library.ToggleKeybind = Options.MenuKeybind
+MenuGroup:AddLabel("Menu bind")
+    :AddKeyPicker("MenuKeybind", {
+        Default = "RightShift",
+        NoUI = true,
+        Text = "Menu keybind"
+    })
+
+MenuGroup:AddButton("Unload", function()
+    Library:Unload()
+end)
+
+Library.ToggleKeybind = Library.Options.MenuKeybind
 
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
@@ -1022,8 +1001,8 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 ThemeManager:SetFolder("PracticalBasketball")
 SaveManager:SetFolder("PracticalBasketball/configs")
-SaveManager:BuildConfigSection(UISettingsTab)
-ThemeManager:ApplyToTab(UISettingsTab)
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
