@@ -972,6 +972,63 @@ Options.Wear = Options.Wear or {}
 -- by using the existing empty buttons + Toggles/Options pattern above.
 
 -- ============================================================================
+-- POPULATE DROPDOWNS WITH REAL LISTS
+-- ============================================================================
+
+do
+    local fx = greenFxList()
+    if Options.GreenFx and Options.GreenFx.SetValues then
+        Options.GreenFx:SetValues(fx)
+        if Options.GreenFx.SetValue then Options.GreenFx:SetValue(fx[1], true) end
+    end
+    if Options.GoalFxPick and Options.GoalFxPick.SetValues then
+        Options.GoalFxPick:SetValues(fx)
+        if Options.GoalFxPick.SetValue then Options.GoalFxPick:SetValue(fx[1], true) end
+    end
+
+    local celebs = celebList()
+    if Options.CelebPick and Options.CelebPick.SetValues then
+        Options.CelebPick:SetValues(celebs)
+        if Options.CelebPick.SetValue then Options.CelebPick:SetValue(celebs[1], true) end
+    end
+
+    local catalog = accCatalog()
+    local firstCat = Options.AccFolder and Options.AccFolder.Value or "Hats"
+    local items = catalog[firstCat] or { "None" }
+    if #items == 0 then items = { "None" } end
+    if Options.AccItem and Options.AccItem.SetValues then
+        Options.AccItem:SetValues(items)
+        if Options.AccItem.SetValue then Options.AccItem:SetValue(items[1], true) end
+    end
+
+    -- Update item list when category changes
+    if Options.AccFolder and Options.AccFolder.OnChanged then
+        Options.AccFolder:OnChanged(function(v)
+            local cat = accCatalog()
+            local list = cat[v] or { "None" }
+            if #list == 0 then list = { "None" } end
+            if Options.AccItem and Options.AccItem.SetValues then
+                Options.AccItem:SetValues(list)
+                if Options.AccItem.SetValue then Options.AccItem:SetValue(list[1], true) end
+            end
+        end)
+    end
+
+    -- Dribble move dropdowns
+    if #DribbleNames > 0 then
+        if Options.AnkleBreakerMove and Options.AnkleBreakerMove.SetValues then
+            Options.AnkleBreakerMove:SetValues(DribbleNames)
+        end
+        for i = 1, 4 do
+            local opt = Options["DribbleMacro" .. i]
+            if opt and opt.SetValues then
+                opt:SetValues(DribbleNames)
+            end
+        end
+    end
+end
+
+-- ============================================================================
 -- RUNTIME LOOPS (make the toggles actually do something)
 -- ============================================================================
 
