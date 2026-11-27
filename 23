@@ -1,16 +1,27 @@
 --========================================================--
 --  LOAD LINORIA
 --========================================================--
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local success, err = pcall(function()
+    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+    getgenv().Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+    getgenv().ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+    getgenv().SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+end)
+
+if not success then
+    warn("Failed to load Linoria:", err)
+    return
+end
+
+local Library = getgenv().Library
+local ThemeManager = getgenv().ThemeManager
+local SaveManager = getgenv().SaveManager
 
 local Options = Library.Options
 local Toggles = Library.Toggles
 
 --========================================================--
---  WINDOW + TABS
+--  WINDOW
 --========================================================--
 local Window = Library:CreateWindow({
     Title = "Vision Hub",
@@ -21,16 +32,30 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-    Practical = Window:AddTab("Practical", "activity"),
-    Cosmetics = Window:AddTab("Cosmetics", "shirt"),
+    Practical   = Window:AddTab("Practical", "activity"),
+    Cosmetics   = Window:AddTab("Cosmetics", "shirt"),
     ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
-local PracticalGroup = Tabs.Practical:AddLeftGroupbox("Practical Settings")
+--========================================================--
+--  SERVICES
+--========================================================--
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+
+local function getChar()
+    local chars = workspace:FindFirstChild("Characters")
+    return chars and chars:FindFirstChild(player.Name)
+end
 
 --========================================================--
---  AUTO PERFECT
+--  PRACTICAL TAB
 --========================================================--
+local PracticalGroup = Tabs.Practical:AddLeftGroupbox("Practical Settings")
+
 PracticalGroup:AddToggle("AutoPerfect", {
     Text = "Auto Perfect",
     Default = false,
@@ -44,75 +69,62 @@ PracticalGroup:AddSlider("MeterOffset", {
     Rounding = 3,
 })
 
---========================================================--
---  SERVICES + CHARACTER
---========================================================--
-repeat task.wait() until game:IsLoaded()
-
-local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
-
-local function getChar()
-    return workspace:FindFirstChild("Characters") and workspace.Characters:FindFirstChild(player.Name)
-end
-
---========================================================--
---  AUTO PERFECT LOGIC
---========================================================--
+-- Auto Perfect Logic
 local function setupAutoPerfect()
     local char = getChar()
     if not char then return end
 
-    char:GetAttributeChangedSignal("meterOffset"):Connect(function()
-        if not Toggles.AutoPerfect.Value then return end
+    local connection
+    connection = char:GetAttributeChangedSignal("meterOffset"):Connect(function()
+        if not Toggles.AutoPerfect or not Toggles.AutoPerfect.Value then return end
 
         local offset = char:GetAttribute("meterOffset")
         if not offset then return end
 
-        local trigger = Options.MeterOffset.Value
+        local trigger = Options.MeterOffset and Options.MeterOffset.Value or -1.239
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
 
-        if char.HumanoidRootPart:FindFirstChild("VerticalMeter") and char.HumanoidRootPart.VerticalMeter.Enabled then
-            if offset.Y <= trigger then
+        local function shoot()
+            pcall(function()
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
+            end)
+        end
+
+        if hrp then
+            if hrp:FindFirstChild("VerticalMeter") and hrp.VerticalMeter.Enabled and offset.Y <= trigger then
+                shoot()
+            elseif hrp:FindFirstChild("BatMeter") and hrp.BatMeter.Enabled and offset.Y <= trigger then
+                shoot()
+            elseif hrp:FindFirstChild("RocketMeter") and hrp.RocketMeter.Enabled and offset.Y <= trigger then
+                shoot()
             end
-        elseif char.HumanoidRootPart:FindFirstChild("BatMeter") and char.HumanoidRootPart.BatMeter.Enabled then
-            if offset.Y <= trigger then
-                RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
-            end
-        elseif char.HumanoidRootPart:FindFirstChild("RocketMeter") and char.HumanoidRootPart.RocketMeter.Enabled then
-            if offset.Y <= trigger then
-                RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
-            end
-        elseif char.Head:FindFirstChild("HoopMeter") and char.Head.HoopMeter.Enabled then
-            if offset.Y >= trigger then
-                RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
-            end
-        elseif char.Head:FindFirstChild("RobloxMeter") and char.Head.RobloxMeter.Enabled then
-            if offset.X >= trigger then
-                RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
-            end
-        else
-            if offset.Y <= trigger then
-                RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
+        end
+
+        if head then
+            if head:FindFirstChild("HoopMeter") and head.HoopMeter.Enabled and offset.Y >= trigger then
+                shoot()
+            elseif head:FindFirstChild("RobloxMeter") and head.RobloxMeter.Enabled and offset.X >= trigger then
+                shoot()
             end
         end
     end)
 end
 
-setupAutoPerfect()
-
-player.CharacterAdded:Connect(function()
-    task.wait(1)
+task.spawn(function()
     setupAutoPerfect()
+    player.CharacterAdded:Connect(function()
+        task.wait(1.5)
+        setupAutoPerfect()
+    end)
 end)
 
 --========================================================--
---  COSMETICS (Correct system from Angel Hub)
+--  COSMETICS
 --========================================================--
-local MODEL_CATS = { "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack" }
-local FLAT_CATS  = { "Jersey", "Shirt", "Pants" }
-local LIST_CATS  = { "Compression", "LegCompression" }
+local MODEL_CATS = {"Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack"}
+local FLAT_CATS  = {"Jersey", "Shirt", "Pants"}
+local LIST_CATS  = {"Compression", "LegCompression"}
 
 local ACC_CATS = {
     "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack",
@@ -124,24 +136,33 @@ local function sortedKeys(tbl)
     local out = {}
     if type(tbl) == "table" then
         for k in pairs(tbl) do
-            out[#out + 1] = tostring(k)
+            table.insert(out, tostring(k))
         end
         table.sort(out)
     end
     return out
 end
 
+local AccessoriesCfg = nil
+
 local function getAccessoriesCfg()
-    local Aero = RS:FindFirstChild("Aero")
-    local Shared = Aero and Aero:FindFirstChild("Shared")
-    local Config = Shared and Shared:FindFirstChild("Config")
-    local Accessories = Config and Config:FindFirstChild("Accessories")
-    if Accessories and Accessories:IsA("ModuleScript") then
-        local ok, cfg = pcall(require, Accessories)
-        if ok then return cfg end
-    end
-    return nil
+    local ok, result = pcall(function()
+        local Aero = RS:FindFirstChild("Aero")
+        if not Aero then return nil end
+        local Shared = Aero:FindFirstChild("Shared")
+        if not Shared then return nil end
+        local Config = Shared:FindFirstChild("Config")
+        if not Config then return nil end
+        local Accessories = Config:FindFirstChild("Accessories")
+        if Accessories and Accessories:IsA("ModuleScript") then
+            return require(Accessories)
+        end
+        return nil
+    end)
+    return ok and result or nil
 end
+
+AccessoriesCfg = getAccessoriesCfg()
 
 local function myPkt()
     local char = getChar()
@@ -153,22 +174,8 @@ local function myPkt()
     if char:FindFirstChild("Appearance") then
         return char.Appearance
     end
-
-    local Aero = RS:FindFirstChild("Aero")
-    if Aero then
-        local controllers = Aero:FindFirstChild("Controllers") or Aero:FindFirstChild("Services")
-        if controllers then
-            for _, c in ipairs(controllers:GetChildren()) do
-                if typeof(c.UpdateAppearance) == "function" then
-                    return c
-                end
-            end
-        end
-    end
     return nil
 end
-
-local AccessoriesCfg = getAccessoriesCfg()
 
 local function accCatalog()
     local out = {}
@@ -181,7 +188,7 @@ local function accCatalog()
         if type(cfg) == "table" and type(cfg[cat]) == "table" and folder then
             for name in pairs(cfg[cat]) do
                 if folder:FindFirstChild(tostring(name), true) then
-                    list[#list + 1] = tostring(name)
+                    table.insert(list, tostring(name))
                 end
             end
         end
@@ -189,31 +196,31 @@ local function accCatalog()
         out[cat] = list
     end
 
-    out.Shoes = sortedKeys(type(cfg) == "table" and cfg.Shoes or nil)
+    out.Shoes = sortedKeys(type(cfg) == "table" and cfg.Shoes)
 
     local masc = {}
     local mf = accRoot and accRoot:FindFirstChild("Mascots")
     if mf then
         for _, c in ipairs(mf:GetChildren()) do
-            masc[#masc + 1] = c.Name
+            table.insert(masc, c.Name)
         end
     end
     table.sort(masc)
     out.Mascot = masc
 
     for _, cat in ipairs(FLAT_CATS) do
-        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat] or nil)
+        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat])
     end
     for _, cat in ipairs(LIST_CATS) do
-        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat] or nil)
+        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat])
     end
 
-    out.SkinTone = sortedKeys(type(cfg) == "table" and cfg.SkinTone or nil)
+    out.SkinTone = sortedKeys(type(cfg) == "table" and cfg.SkinTone)
     return out
 end
 
 local function parseColor(s)
-    if type(s) \~= "string" then return { 255, 255, 255 } end
+    if type(s) \~= "string" then return {255, 255, 255} end
     local r, g, b = s:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
     if r then
         return {
@@ -230,75 +237,77 @@ local function parseColor(s)
             tonumber(hex:sub(5, 6), 16),
         }
     end
-    return { 255, 255, 255 }
+    return {255, 255, 255}
 end
 
 local function skinColorFromName(name)
     local cfg = AccessoriesCfg
-    local entry = type(cfg) == "table" and cfg.SkinTone and cfg.SkinTone[name]
-    if typeof(entry) == "Color3" then
-        return {
-            math.round(entry.R * 255),
-            math.round(entry.G * 255),
-            math.round(entry.B * 255),
-        }
+    if type(cfg) == "table" and cfg.SkinTone and cfg.SkinTone[name] then
+        local entry = cfg.SkinTone[name]
+        if typeof(entry) == "Color3" then
+            return {
+                math.round(entry.R * 255),
+                math.round(entry.G * 255),
+                math.round(entry.B * 255),
+            }
+        end
     end
-    return { 255, 255, 255 }
+    return {255, 255, 255}
 end
 
 local function wearCosmetic(cat, name, color)
     if not cat or not name or name == "" or name == "None" then
         return false, "nothing selected"
     end
+
     local pkt = myPkt()
     if not pkt or type(pkt.UpdateAppearance) \~= "function" then
-        return false, "no appearance system found"
+        return false, "appearance system not found"
     end
-    color = color or { 255, 255, 255 }
+
+    color = color or {255, 255, 255}
 
     local ok, err = pcall(function()
         if cat == "Mascot" then
-            pkt:UpdateAppearance({ Mascot = { name } })
+            pkt:UpdateAppearance({Mascot = {name}})
         elseif cat == "Shoes" then
             pkt:UpdateAppearance({
                 Shoes = {
-                    LeftShoe  = { name, color },
-                    RightShoe = { name, color },
+                    LeftShoe  = {name, color},
+                    RightShoe = {name, color},
                 }
             })
         elseif cat == "SkinTone" then
-            pkt:UpdateAppearance({ SkinTone = skinColorFromName(name) })
+            pkt:UpdateAppearance({SkinTone = skinColorFromName(name)})
         elseif cat == "Jersey" or cat == "Shirt" or cat == "Pants" then
-            pkt:UpdateAppearance({ [cat] = name })
+            pkt:UpdateAppearance({[cat] = name})
         else
-            pkt:UpdateAppearance({ [cat] = { { name, color } } })
+            pkt:UpdateAppearance({[cat] = {{name, color}}})
         end
     end)
 
-    if not ok then return false, tostring(err) end
-    return true
+    return ok, err
 end
 
 local function clearCosmetic(cat)
     local pkt = myPkt()
     if not pkt or type(pkt.UpdateAppearance) \~= "function" then
-        return false, "no appearance system found"
+        return false, "appearance system not found"
     end
-    if cat == "Shoes" then return false, "shoes have no empty slot" end
-    if cat == "SkinTone" then return false, "pick a tone instead" end
+    if cat == "Shoes" then return false, "can't clear shoes" end
+    if cat == "SkinTone" then return false, "pick a different tone" end
 
     local ok, err = pcall(function()
         if cat == "Mascot" then
-            pkt:UpdateAppearance({ Mascot = { "None" } })
+            pkt:UpdateAppearance({Mascot = {"None"}})
         elseif cat == "Jersey" or cat == "Shirt" or cat == "Pants" then
-            pkt:UpdateAppearance({ [cat] = "" })
+            pkt:UpdateAppearance({[cat] = ""})
         else
-            pkt:UpdateAppearance({ [cat] = {} })
+            pkt:UpdateAppearance({[cat] = {}})
         end
     end)
 
-    if not ok then return false, tostring(err) end
-    return true
+    return ok, err
 end
 
 -- Cosmetics UI
@@ -306,12 +315,7 @@ local CSL = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
 local CSR = Tabs.Cosmetics:AddRightGroupbox("Apply")
 
 local catalog = accCatalog()
-local S = {
-    accCat = "Hats",
-    accItem = "None",
-    accColor = "255,255,255"
-}
-
+local S = { accCat = "Hats", accItem = "None", accColor = "255,255,255" }
 local accItemDropdown
 
 CSL:AddDropdown("AccFolder", {
@@ -320,18 +324,18 @@ CSL:AddDropdown("AccFolder", {
     Default = "Hats",
     Callback = function(v)
         S.accCat = v
-        local list = catalog[v] or {}
-        if #list == 0 then list = { "None" } end
+        local list = catalog[v] or {"None"}
+        if #list == 0 then list = {"None"} end
         if accItemDropdown then
             accItemDropdown:SetValues(list)
-            accItemDropdown:SetValue(list[1] or "None", true)
+            accItemDropdown:SetValue(list[1], true)
         end
-        S.accItem = list[1] or "None"
+        S.accItem = list[1]
     end
 })
 
-local firstList = catalog["Hats"] or { "None" }
-if #firstList == 0 then firstList = { "None" } end
+local firstList = catalog["Hats"] or {"None"}
+if #firstList == 0 then firstList = {"None"} end
 
 accItemDropdown = CSL:AddDropdown("AccItem", {
     Text = "Item",
@@ -344,7 +348,7 @@ accItemDropdown = CSL:AddDropdown("AccItem", {
 S.accItem = firstList[1]
 
 CSL:AddTextbox("AccColor", {
-    Text = "Color (r,g,b or hex)",
+    Text = "Color (r,g,b or #hex)",
     Default = "255,255,255",
     Placeholder = "255,255,255",
     Callback = function(v)
@@ -356,7 +360,7 @@ CSR:AddButton("Apply", function()
     local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
     Library:Notify({
         Title = "Cosmetic",
-        Description = ok and ("Applied " .. S.accCat .. ": " .. S.accItem) or ("Failed: " .. tostring(err)),
+        Description = ok and ("Applied → " .. S.accCat .. ": " .. S.accItem) or ("Failed: " .. tostring(err)),
         Time = 4
     })
 end)
@@ -373,22 +377,18 @@ end)
 CSR:AddButton("Refresh Catalog", function()
     AccessoriesCfg = getAccessoriesCfg()
     catalog = accCatalog()
-    local list = catalog[S.accCat] or { "None" }
-    if #list == 0 then list = { "None" } end
+    local list = catalog[S.accCat] or {"None"}
+    if #list == 0 then list = {"None"} end
     if accItemDropdown then
         accItemDropdown:SetValues(list)
-        accItemDropdown:SetValue(list[1] or "None", true)
+        accItemDropdown:SetValue(list[1], true)
     end
-    S.accItem = list[1] or "None"
-    Library:Notify({
-        Title = "Cosmetic",
-        Description = "Catalog refreshed",
-        Time = 2
-    })
+    S.accItem = list[1]
+    Library:Notify({Title = "Cosmetic", Description = "Catalog refreshed", Time = 2})
 end)
 
-CSR:AddLabel("Uses the game's real appearance system")
-CSR:AddLabel("Mascot + all categories supported")
+CSR:AddLabel("Real appearance system")
+CSR:AddLabel("Supports Mascot + all categories")
 
 --========================================================--
 --  UI SETTINGS
@@ -402,8 +402,14 @@ end)
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+SaveManager:SetIgnoreIndexes({"MenuKeybind"})
 ThemeManager:SetFolder("VisionHub")
 SaveManager:SetFolder("VisionHub/configs")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+Library:Notify({
+    Title = "Vision Hub",
+    Description = "Loaded successfully",
+    Time = 3
+})
