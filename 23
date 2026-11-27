@@ -1,6 +1,5 @@
 --========================================================--
---  VISION HUB - Practical Basketball
---  Features ported from Angel Hub Practical build
+--  LOAD LINORIA
 --========================================================--
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -15,2102 +14,32 @@ local Toggles = Library.Toggles
 --========================================================--
 local Window = Library:CreateWindow({
     Title = "Vision Hub",
-    Footer = "Practical System",
+    Footer = "Pratical System",
     Icon = 95816097006870,
     NotifySide = "Right",
     ShowCustomCursor = true,
 })
 
 local Tabs = {
-    Practical  = Window:AddTab("Practical", "activity"),
-    Shooting   = Window:AddTab("Shooting", "target"),
-    Dribble    = Window:AddTab("Dribble", "zap"),
-    Offense    = Window:AddTab("Offense", "sword"),
-    Defense    = Window:AddTab("Defense", "shield"),
-    Movement   = Window:AddTab("Movement", "run"),
-    Cosmetics  = Window:AddTab("Cosmetics", "palette"),
-    GreenFX    = Window:AddTab("Green FX", "sparkles"),
-    REC        = Window:AddTab("REC", "home"),
-    Spoofers   = Window:AddTab("Spoofers", "user"),
+    Practical = Window:AddTab("Practical", "activity"),
+    Cosmetics = Window:AddTab("Cosmetics", "shirt"),
     ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
---========================================================--
---  SERVICES
---========================================================--
-repeat task.wait() until game:IsLoaded()
-
-local Players    = game:GetService("Players")
-local RS         = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local UIS        = game:GetService("UserInputService")
-local WS         = workspace
-local Http       = game:GetService("HttpService")
-
-local me = Players.LocalPlayer
-local gg = (getgenv and getgenv()) or _G
-
-local function notify(t, x)
-    pcall(function() Library:Notify({ Title = t, Description = x, Time = 2.5 }) end)
-end
+local PracticalGroup = Tabs.Practical:AddLeftGroupbox("Practical Settings")
 
 --========================================================--
---  AERO / CONTROLLERS
+--  AUTO PERFECT (NEW)
 --========================================================--
-local AeroFolder = RS:FindFirstChild("Aero")
-local Svc = AeroFolder and AeroFolder:FindFirstChild("AeroRemoteServices")
-
-local PS = me:FindFirstChild("PlayerScripts")
-local AeroClient = PS and PS:FindFirstChild("Aero")
-local Ctrl = AeroClient and AeroClient:FindFirstChild("Controllers")
-
-local function req(parent, name)
-    local m = parent and parent:FindFirstChild(name)
-    if not m then return nil end
-    local ok, res = pcall(require, m)
-    if ok then return res end
-    return nil
-end
-
-local PlayerCtrl = req(Ctrl, "Player")
-local CharsCtrl  = req(Ctrl, "Characters")
-local TeamCtrl   = req(Ctrl, "Team")
-local HoopsCtrl  = req(Ctrl, "Hoops")
-local CourtCtrl  = req(Ctrl, "Court")
-
-local Services = PlayerCtrl and PlayerCtrl.Services
-local InputS   = Services and Services.InputService
-local InvS     = Services and Services.InventoryService
-
-local function remote(parent, name)
-    return parent and parent:FindFirstChild(name) or nil
-end
-
-local InputSvc    = Svc and Svc:FindFirstChild("InputService")
-local MeterSvc    = Svc and Svc:FindFirstChild("MeterService")
-local InterSvc    = Svc and Svc:FindFirstChild("InterfaceService")
-local GameplaySvc = Svc and Svc:FindFirstChild("GameplayService")
-
-local ShootR      = remote(InputSvc, "Shoot")
-local ClutchR     = InputSvc and InputSvc:FindFirstChild("Clutch")
-local JoinPlaceR  = remote(InterSvc, "JoinPlace")
-
-local function send(svc, name, ...)
-    local args = table.pack(...)
-    local wrapper = svc and svc[name]
-    if type(wrapper) == "table" and type(wrapper.Fire) == "function" then
-        local ok = pcall(function() wrapper:Fire(table.unpack(args, 1, args.n)) end)
-        if ok then return true end
-    end
-    local folder = nil
-    if svc == InputS then folder = InputSvc
-    elseif svc == InvS then folder = Svc and Svc:FindFirstChild("InventoryService") end
-    local r = remote(folder, name)
-    if not r then return false end
-    return (pcall(function() r:FireServer(table.unpack(args, 1, args.n)) end))
-end
-
-local function rawRemote(serviceName, remoteName)
-    local svc = Svc and Svc:FindFirstChild(serviceName)
-    return svc and svc:FindFirstChild(remoteName) or nil
-end
-
-local function rawFire(serviceName, remoteName, ...)
-    local r = rawRemote(serviceName, remoteName)
-    if not r then return false end
-    local args = table.pack(...)
-    if r:IsA("RemoteEvent") then
-        return (pcall(function() r:FireServer(table.unpack(args, 1, args.n)) end))
-    elseif r:IsA("RemoteFunction") then
-        local ok = pcall(function() return r:InvokeServer(table.unpack(args, 1, args.n)) end)
-        return ok
-    end
-    return false
-end
-
--- Shared configs
-local AeroShared = AeroFolder and AeroFolder:FindFirstChild("Shared")
-local SharedCfg  = AeroShared and AeroShared:FindFirstChild("Config")
-local GreenFxConfig = req(SharedCfg, "GreenEffects")
-local CelebsConfig  = req(SharedCfg, "Celebrations")
-local AccessoriesCfg = req(SharedCfg, "Accessories")
-
---========================================================--
---  STATE
---========================================================--
-local S = {
-    cleaned = false,
-    conns = {},
-
-    -- Auto Time / Shooting
-    autoTime = false,
-    releaseAtFull = false,
-    greenTarget = 99,
-    autoTimeDelay = 0.300,
-    autoTimePingComp = 0.55,
-    autoTimeMin = 0.12,
-    autoTimeMax = 1.20,
-    autoTimeMeterSync = true,
-    autoTimeNotify = false,
-    autoMovingShot = false,
-    movingShotDelayBonus = 0.08,
-    shotArmed = false,
-    shotToken = 0,
-    shotT0 = 0,
-    lastRelease = 0,
-    meterPick = "",
-    autoShoot = false,
-    shootOpenRange = 7,
-
-    -- Defense
-    autoGuard = false,
-    guardFlip = false,
-    guardState = false,
-    autoSteal = false,
-    autoContest = false,
-    guardRange = 14,
-    guardStandoff = 2.0,
-    guardLead = 0.25,
-    guardNative = true,
-    guardPressed = false,
-    guardLastPress = 0,
-    guardRefire = 0,
-    guardApproaching = false,
-    lastSteal = 0,
-    lastJump = 0,
-    contestAction = "",
-
-    -- Offense
-    offenseGuard = false,
-    lastOffGuard = 0,
-    autoClutch = false,
-    lastClutchAt = 0,
-    autoBlowBy = false,
-    blowByLast = 0,
-
-    -- Dribble
-    speedWithBall = false,
-    swbSpeed = 34,
-    ankleBreaker = false,
-    anklebreakerMove = "SnatchBack",
-    ankleLastFire = 0,
-    infiniteStamina = false,
-    sprintOn = false,
-    autoSprint = false,
-    stamMax = nil,
-
-    -- Movement
-    cfSpeed = false,
-    cfSpeedValue = 40,
-    walkBoost = false,
-    walkBoostMult = 1.6,
-    walkBoostCap = 45,
-    hipHeight = false,
-    hipValue = 2,
-    hipBaseY = nil,
-
-    -- Ball magnet
-    ballMag = false,
-    ballMagRange = 9,
-    ballMagAnyDist = true,
-    ballMagPull = false,
-    magTick = 0,
-    magTouches = 0,
-
-    -- REC
-    recFarm = false,
-    recState = "idle",
-    recPhase = 0,
-    recPlaceId = 104645279125178,
-    recQueuePlaceId = 79672855812610,
-    recCdOn = false,
-    recCdInterval = 0.35,
-    recCdCount = 0,
-    recCdNext = 0,
-    recReadyLabel = "",
-    recShootMaxRange = 55,
-    recRebound = true,
-    recFarmSprint = true,
-    recWarmUp = true,
-    recWarmShotGap = 2.2,
-    recParkThreat = 5.5,
-    recDebug = false,
-    recAutoInboundOn = false,
-    recInboundMode = "Auto-pass",
-    recAutoInbound = "Off",
-    recAutoQueue = true,
-    recAutoQueueDelay = 4,
-    recMatchSeen = false,
-    recMatchEndAt = nil,
-    recMatchStartAt = 0,
-    recQueueCooldown = 0,
-    recGuardTarget = nil,
-    recLastSteal = 0,
-    recPassPending = 0,
-    recPassToken = 0,
-    recPassTries = 0,
-    recPassTarget = nil,
-    recPassType = 1,
-    recOpenSpotTarget = nil,
-    recInPaintSince = 0,
-    recShootWhy = "",
-
-    -- Smart Farm
-    smartFarm = false,
-    smartState = "IDLE",
-    smartDefTarget = nil,
-    smartOffSpot = nil,
-    smartSpotMode = "3PT",
-    smartSpot3 = "Rotate",
-    smartSpot2 = "Rotate",
-    smartRotIdx3 = 1,
-    smartRotIdx2 = 1,
-    smartDebug = false,
-    smartDebugLast = 0,
-    smartLastSwitch = 0,
-
-    -- Stats / Webhook
-    webhookOn = false,
-    webhookURL = "",
-    webhookOnEnd = true,
-    webhookQuarters = true,
-    webhookStatus = "idle",
-    webhookLastAt = 0,
-    livePts = 0, liveAst = 0, liveReb = 0, liveBlk = 0, liveStl = 0,
-    liveTov = 0, liveFls = 0, livePlusMinus = 0,
-    liveFgs = "0/0", live3ps = "0/0", liveFts = "0/0",
-    liveGrade = "-", liveSide = "", liveRowFound = false,
-    liveHomeScore = 0, liveAwayScore = 0,
-    quarterHome = {}, quarterAway = {},
-    quarterSeen = 0, quarterSent = {},
-    statShots = 0, statPasses = 0, statSteals = 0, statRebounds = 0,
-
-    -- Cosmetics
-    accCat = "Hats",
-    accItem = "None",
-    accColor = "255,255,255",
-
-    -- Green FX
-    greenFx = "Basic",
-    greenFxAuto = true,
-    greenCeleb = false,
-    celebPick = "",
-    goalFx = "Basic",
-    goalFxOverride = false,
-
-    -- Spoofers
-    spoofCoins = false,
-    coinsValue = 999999,
-    spoofRank = false,
-    rankValue = "Legend",
-    spoofOverall = false,
-    overallValue = 99,
-    spoofName = false,
-    nameValue = "Practical",
-
-    -- Anim
-    animJumpShot = "None",
-    animDunk = "None",
-}
-
-local function track(c)
-    if c then S.conns[#S.conns + 1] = c end
-    return c
-end
-
---========================================================--
---  CHARACTER / PACKET HELPERS
---========================================================--
-local function getChar()
-    local chars = WS:FindFirstChild("Characters")
-    return chars and chars:FindFirstChild(me.Name)
-end
-
-local function myPkt()
-    if CharsCtrl and CharsCtrl.GetPacket then
-        local ok, p = pcall(function() return CharsCtrl:GetPacket(me) end)
-        if ok and p then return p end
-    end
-    if CharsCtrl and type(CharsCtrl.Packets) == "table" then
-        return CharsCtrl.Packets[me.UserId] or CharsCtrl.Packets[me.Name]
-    end
-    return nil
-end
-
-local function pktAttr(pkt, key)
-    if not pkt then return nil end
-    if pkt.attributes then return pkt.attributes[key] end
-    local m = pkt.model
-    if m then
-        local ok, v = pcall(function() return m:GetAttribute(key) end)
-        if ok then return v end
-    end
-    return nil
-end
-
-local function setAttr(pkt, key, val)
-    if not pkt then return end
-    if pkt.attributes then pkt.attributes[key] = val end
-    local m = pkt.model
-    if m then pcall(function() m:SetAttribute(key, val) end) end
-end
-
-local function pktRoot(pkt)
-    if not pkt then return nil end
-    local m = pkt.model or pkt.Character
-    if m then
-        return m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
-    end
-    return nil
-end
-
-local function myRoot()
-    local pkt = myPkt()
-    local r = pktRoot(pkt)
-    if r then return r end
-    local c = getChar()
-    return c and c:FindFirstChild("HumanoidRootPart")
-end
-
-local function pktHasBall(pkt)
-    if not pkt then return false end
-    local v = pktAttr(pkt, "HasBall")
-    if v ~= nil then return v == true end
-    v = pktAttr(pkt, "Ball")
-    return v ~= nil and v ~= false
-end
-
-local function hasBall()
-    return pktHasBall(myPkt())
-end
-
-local function allPackets()
-    local out = {}
-    if CharsCtrl and type(CharsCtrl.Packets) == "table" then
-        for _, p in pairs(CharsCtrl.Packets) do out[#out + 1] = p end
-        return out
-    end
-    return out
-end
-
-local function isOpponent(pkt)
-    if not pkt then return false end
-    local meP = myPkt()
-    if not meP then return false end
-    local myHome = pktAttr(meP, "HomeTeam")
-    local theirHome = pktAttr(pkt, "HomeTeam")
-    if myHome == nil or theirHome == nil then return false end
-    return myHome ~= theirHome
-end
-
-local function pktName(pkt)
-    if not pkt then return "?" end
-    if pkt.player then return pkt.player.Name end
-    if pkt.model then return pkt.model.Name end
-    return "?"
-end
-
-local function nearestOpponent(range, needBall)
-    local root = myRoot()
-    if not root then return nil, nil end
-    local best, bestD = nil, range or 150
-    for _, pkt in ipairs(allPackets()) do
-        if isOpponent(pkt) then
-            if needBall and not pktHasBall(pkt) then continue end
-            local r = pktRoot(pkt)
-            if r then
-                local d = (r.Position - root.Position).Magnitude
-                if d < bestD then best, bestD = pkt, d end
-            end
-        end
-    end
-    return best, bestD
-end
-
-local function goalPosition()
-    local pkt = myPkt()
-    if not pkt then return nil end
-    local isHome = pktAttr(pkt, "HomeTeam")
-    -- Attack the opposite hoop
-    if isHome then
-        return Vector3.new(64.5, 9.9, -23.2)
-    else
-        return Vector3.new(-48.7, 12.5, -23.2)
-    end
-end
-
-local function distToMyGoal()
-    local root = myRoot()
-    local g = goalPosition()
-    if not root or not g then return 999 end
-    return (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(g.X, 0, g.Z)).Magnitude
-end
-
-local function isInbounding(pkt)
-    local act = pktAttr(pkt, "Action")
-    return act == "Inbounding" or act == "Inbound" or pktAttr(pkt, "Inbounding") == true
-end
-
-local function looseBall(range)
-    local bs = WS:FindFirstChild("Basketballs")
-    if not bs then return nil end
-    local root = myRoot()
-    if not root then return nil end
-    local best, bestD = nil, range or 120
-    for _, b in ipairs(bs:GetDescendants()) do
-        if b:IsA("BasePart") and b.Name:lower():find("ball") then
-            local d = (b.Position - root.Position).Magnitude
-            if d < bestD then best, bestD = b, d end
-        end
-    end
-    return best
-end
-
-local function inCourt(pos)
-    -- rough court bounds
-    return pos.X > -80 and pos.X < 100 and pos.Z > -60 and pos.Z < 20
-end
-
---========================================================--
---  MOVEMENT HELPERS
---========================================================--
-local Controls
-pcall(function()
-    local ps = me:FindFirstChild("PlayerScripts")
-    local pm = ps and ps:FindFirstChild("PlayerModule")
-    if pm then Controls = require(pm):GetControls() end
-end)
-
-local moveOverride = nil
-local origGetMoveVector
-
-if Controls then
-    pcall(function()
-        origGetMoveVector = Controls.GetMoveVector
-        rawset(Controls, "GetMoveVector", function(self)
-            if moveOverride then return moveOverride end
-            if origGetMoveVector then return origGetMoveVector(self) end
-            return Vector3.zero
-        end)
-    end)
-end
-
-local function setMoveInput(vec)
-    moveOverride = vec
-end
-
-local function stopMoving()
-    moveOverride = nil
-end
-
-local function worldToInput(worldDir)
-    local cam = WS.CurrentCamera
-    if not cam then return worldDir end
-    local cf = cam.CFrame
-    local f = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
-    local r = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
-    if f.Magnitude < 0.01 then return Vector3.zero end
-    f, r = f.Unit, r.Unit
-    local x = worldDir:Dot(r)
-    local z = worldDir:Dot(f)
-    return Vector3.new(x, 0, z)
-end
-
-local function moveTowards(pos, speedMult)
-    local root = myRoot()
-    if not root then return end
-    local dir = Vector3.new(pos.X - root.Position.X, 0, pos.Z - root.Position.Z)
-    if dir.Magnitude < 0.5 then
-        stopMoving()
-        return
-    end
-    local input = worldToInput(dir.Unit)
-    setMoveInput(input * (speedMult or 1))
-end
-
---========================================================--
---  SHOOTING / AUTO TIME
---========================================================--
-local function pingSeconds()
-    local ok, v = pcall(function() return me:GetNetworkPing() end)
-    if ok and type(v) == "number" then return v end
-    return 0.05
-end
-
-local function releaseDelay()
-    local d = S.autoTimeDelay or 0.3
-    local ping = pingSeconds() * (S.autoTimePingComp or 0.55)
-    d = d - ping
-    if S.autoMovingShot then
-        local root = myRoot()
-        if root then
-            local vel = root.AssemblyLinearVelocity
-            local spd = Vector3.new(vel.X, 0, vel.Z).Magnitude
-            if spd > 4 then d = d + (S.movingShotDelayBonus or 0.08) end
-        end
-    end
-    return math.clamp(d, S.autoTimeMin or 0.12, S.autoTimeMax or 1.2)
-end
-
-local function doRelease(reason)
-    if not S.shotArmed then return end
-    S.shotArmed = false
-    S.lastRelease = os.clock()
-    pcall(function()
-        if ShootR then
-            ShootR:FireServer({ Shoot = false })
-        else
-            send(InputS, "Shoot", { Shoot = false })
-        end
-    end)
-    if S.autoTimeNotify then
-        notify("Auto Time", "released (" .. tostring(reason) .. ")")
-    end
-    if S.greenFxAuto and S.greenFx then
-        task.defer(function()
-            pcall(function()
-                if gg.playGreenFx then gg.playGreenFx(S.greenFx) end
-            end)
-        end)
-    end
-end
-
-local function armShot()
-    S.shotArmed = true
-    S.shotToken = (S.shotToken or 0) + 1
-    S.shotT0 = os.clock()
-end
-
-local function shootNow()
-    if S.shotArmed then return end
-    pcall(function()
-        if ShootR then
-            ShootR:FireServer({ Shoot = true })
-        else
-            send(InputS, "Shoot", { Shoot = true })
-        end
-    end)
-    armShot()
-end
-
-local function shotAllowed()
-    local d = distToMyGoal()
-    return d <= (S.recShootMaxRange or 55)
-end
-
---========================================================--
---  GUARD / SPRINT / MAGNET
---========================================================--
-local VK_G = 71
-
-local function gameActive()
-    local ok, v = pcall(function()
-        if isrbxactive then return isrbxactive() end
-        if isgameactive then return isgameactive() end
-        return true
-    end)
-    if ok then return v ~= false end
-    return false
-end
-
-local function nativeGuard(on)
-    if on then
-        if not gameActive() then return false end
-        return (pcall(function() keypress(VK_G) end))
-    end
-    return (pcall(function() keyrelease(VK_G) end))
-end
-
-local function setGuard(on)
-    if S.guardState == on then return end
-    S.guardState = on
-    if on then
-        S.guardPressed = S.guardNative and nativeGuard(true) or false
-        S.guardLastPress = os.clock()
-        send(InputS, "HoldG", { HoldingG = true })
-    else
-        if S.guardPressed then nativeGuard(false) end
-        S.guardPressed = false
-        S.guardLastPress = 0
-        send(InputS, "HoldG", { HoldingG = false })
-    end
-end
-
-local function guardTick(pkt)
-    if not pkt then return end
-    local want = S.autoGuard and not S.shotArmed and not pktHasBall(pkt)
-    if want then
-        setGuard(true)
-        local now = os.clock()
-        if now - (S.guardRefire or 0) > 2.0 then
-            S.guardRefire = now
-            if S.guardNative and not S.guardPressed then
-                S.guardPressed = nativeGuard(true)
-            end
-            send(InputS, "HoldG", { HoldingG = true })
-        end
-        setAttr(pkt, "HoldingG", true)
-    elseif S.guardState then
-        setGuard(false)
-        setAttr(pkt, "HoldingG", false)
-    end
-end
-
-local function guardMove(oroot, dist)
-    local root = myRoot()
-    if not root or not oroot then return end
-    local meP = myPkt()
-    local isHome = meP and pktAttr(meP, "HomeTeam")
-    if S.guardFlip then isHome = not isHome end
-    local defBasket = isHome
-        and Vector3.new(-48.7, 12.5, -23.2)
-        or  Vector3.new(64.5, 9.9, -23.2)
-    local toBasket = defBasket - oroot.Position
-    toBasket = Vector3.new(toBasket.X, 0, toBasket.Z)
-    local standoff = S.guardStandoff or 2.0
-    local lead = S.guardLead or 0.25
-    local vel = oroot.AssemblyLinearVelocity
-    local predicted = oroot.Position + Vector3.new(vel.X, 0, vel.Z) * lead
-    local anchor
-    if toBasket.Magnitude > 0.01 then
-        anchor = predicted + toBasket.Unit * standoff
-    else
-        anchor = predicted
-    end
-    local d = (Vector3.new(anchor.X, 0, anchor.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
-    if d > 1.2 then
-        moveTowards(Vector3.new(anchor.X, root.Position.Y, anchor.Z), 1)
-        S.guardApproaching = true
-    else
-        stopMoving()
-        S.guardApproaching = false
-    end
-end
-
-local function sprintTick(pkt)
-    if not pkt then return end
-    if S.autoSprint then
-        if not S.sprintOn then
-            S.sprintOn = true
-            send(InputS, "Sprint", true)
-        end
-        if not S.stamMax then
-            local m = pkt.model
-            local mx = m and m:GetAttribute("MaxStamina")
-            S.stamMax = type(mx) == "number" and mx or 100
-        end
-        setAttr(pkt, "Sprinting", true)
-        setAttr(pkt, "Stamina", S.stamMax)
-    elseif S.sprintOn then
-        S.sprintOn = false
-        send(InputS, "Sprint", false)
-        setAttr(pkt, "Sprinting", false)
-    end
-end
-
-local function magBall()
-    local bs = WS:FindFirstChild("Basketballs")
-    if not bs then return nil end
-    local root = myRoot()
-    if not root then return nil end
-    local best, bestD = nil, math.huge
-    for _, b in ipairs(bs:GetDescendants()) do
-        if b:IsA("BasePart") and b.Name:lower():find("ball") then
-            local d = (b.Position - root.Position).Magnitude
-            if d < bestD then best, bestD = b, d end
-        end
-    end
-    return best, bestD
-end
-
-local function magnetTick(root)
-    if not root then return end
-    local now = os.clock()
-    if now - (S.magTick or 0) < 0.03 then return end
-    S.magTick = now
-    local ball, d = magBall()
-    if not ball then
-        S.magTouches = 0
-        return
-    end
-    local inRange = S.ballMagAnyDist or d <= (S.ballMagRange or 9)
-    if inRange then
-        if typeof(firetouchinterest) == "function" then
-            pcall(firetouchinterest, root, ball, 0)
-            pcall(firetouchinterest, root, ball, 1)
-        end
-        if typeof(fireproximityprompt) == "function" then
-            local n = 0
-            for _, pr in ipairs(ball:GetDescendants()) do
-                if pr:IsA("ProximityPrompt") and pr.Enabled then
-                    pcall(fireproximityprompt, pr)
-                    n += 1
-                    if n >= 2 then break end
-                end
-            end
-        end
-        S.magTouches = 1
-    else
-        S.magTouches = 0
-    end
-    if S.ballMagPull and d > 2 and d <= (S.ballMagRange or 9) * 4 then
-        local netOwner = nil
-        pcall(function() netOwner = ball:GetNetworkOwner() end)
-        if netOwner == me and not ball.Anchored then
-            pcall(function()
-                local target = root.Position + root.CFrame.LookVector * 2 + Vector3.new(0, 1, 0)
-                ball.CFrame = CFrame.new(target)
-                ball.AssemblyLinearVelocity = Vector3.zero
-            end)
-        end
-    end
-end
-
---========================================================--
---  DRIBBLE
---========================================================--
-local DribbleNames = {
-    "Crossover", "BetweenLegs", "BehindBack", "Hesi", "SnatchBack",
-    "Spin", "HalfSpin", "Turbo", "Stepback", "Shuffle",
-}
-
-local DribbleMacros = {
-    { Move = "Crossover",  Key = nil },
-    { Move = "BetweenLegs", Key = nil },
-    { Move = "SnatchBack", Key = nil },
-    { Move = "Spin",       Key = nil },
-}
-
-local function playDribble(name)
-    if not name or name == "None" then return end
-    send(InputS, "Dribble", { Type = name })
-    -- fallback common shapes
-    pcall(function() send(InputS, "DribbleMove", name) end)
-end
-
-local dribbleMacroConns = {}
-local function unbindDribbleMacros()
-    for _, c in ipairs(dribbleMacroConns) do pcall(function() c:Disconnect() end) end
-    dribbleMacroConns = {}
-end
-
-local function bindDribbleMacro(i)
-    -- keybinds handled via Library Options
-end
-
---========================================================--
---  GREEN FX / CELEBRATIONS / COSMETICS
---========================================================--
-local function greenFxList()
-    local out = { "Basic" }
-    if type(GreenFxConfig) == "table" then
-        for k in pairs(GreenFxConfig) do
-            if type(k) == "string" and k ~= "Basic" then out[#out + 1] = k end
-        end
-        table.sort(out)
-    end
-    return out
-end
-
-local function celebList()
-    local out = { "None" }
-    if type(CelebsConfig) == "table" then
-        for k in pairs(CelebsConfig) do
-            if type(k) == "string" then out[#out + 1] = k end
-        end
-        table.sort(out)
-    end
-    return out
-end
-
-local function applyGreenFx(name)
-    if not name then return false end
-    local r = rawRemote("InterfaceService", "RunGreenEffect")
-        or rawRemote("InterfaceService", "GreenCelebration")
-    if r then
-        return pcall(function()
-            if r:IsA("RemoteEvent") then r:FireServer(name)
-            else r:InvokeServer(name) end
-        end)
-    end
-    return false
-end
-
-local function playGreenFx(name)
-    return applyGreenFx(name or S.greenFx)
-end
-
-local function playCelebration(name)
-    if not name or name == "None" then return end
-    local r = rawRemote("InterfaceService", "GreenCelebration")
-    if r then
-        pcall(function()
-            if r:IsA("RemoteEvent") then r:FireServer(name)
-            else r:InvokeServer(name) end
-        end)
-    end
-end
-
-local ACC_CATS = { "Hats", "Faces", "Arms", "Legs", "Shoes", "Balls", "Warmups" }
-
-local function accCatalog()
-    local cat = {}
-    for _, c in ipairs(ACC_CATS) do cat[c] = {} end
-    if type(AccessoriesCfg) == "table" then
-        for folder, items in pairs(AccessoriesCfg) do
-            local list = cat[folder] or {}
-            if type(items) == "table" then
-                for name in pairs(items) do
-                    if type(name) == "string" then list[#list + 1] = name end
-                end
-            end
-            table.sort(list)
-            cat[folder] = list
-        end
-    end
-    return cat
-end
-
-local function parseColor(str)
-    str = tostring(str or ""):gsub("%s", "")
-    if str:sub(1, 1) == "#" then
-        local h = str:sub(2)
-        if #h == 6 then
-            local r = tonumber(h:sub(1, 2), 16) or 255
-            local g = tonumber(h:sub(3, 4), 16) or 255
-            local b = tonumber(h:sub(5, 6), 16) or 255
-            return Color3.fromRGB(r, g, b)
-        end
-    end
-    local r, g, b = str:match("(%d+),(%d+),(%d+)")
-    if r then return Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)) end
-    return Color3.new(1, 1, 1)
-end
-
-local function wearCosmetic(cat, item, color)
-    if not item or item == "None" then return false, "no item" end
-    local r = rawRemote("InventoryService", "EquipAccessory")
-        or rawRemote("InventoryService", "Wear")
-        or rawRemote("PlayerService", "Equip")
-    if r then
-        local ok = pcall(function()
-            if r:IsA("RemoteEvent") then r:FireServer(cat, item, color)
-            else r:InvokeServer(cat, item, color) end
-        end)
-        return ok, ok and "ok" or "fire failed"
-    end
-    -- client visual fallback: try cloning from assets
-    return false, "no equip remote"
-end
-
-local function clearCosmetic(cat)
-    local r = rawRemote("InventoryService", "UnequipAccessory")
-        or rawRemote("InventoryService", "Clear")
-    if r then
-        return pcall(function()
-            if r:IsA("RemoteEvent") then r:FireServer(cat)
-            else r:InvokeServer(cat) end
-        end)
-    end
-    return false, "no clear remote"
-end
-
---========================================================--
---  METER KIT
---========================================================--
-local MeterKit = {}
-local METER_FALLBACK = { "Arrow","Bat","Diamond","Funnel","Funnel2","Hoop","Pill","Rocket","Roblox","Tube","Vertical" }
-
-function MeterKit.types()
-    local out = {}
-    local ok, cfg = pcall(function()
-        local settings = SharedCfg and SharedCfg:FindFirstChild("Settings")
-        local meter = settings and settings:FindFirstChild("Meter")
-        return meter and require(meter)
-    end)
-    if ok and type(cfg) == "table" then
-        for _, row in ipairs(cfg) do
-            if row.settingName == "Type" and type(row.options) == "table" then
-                for _, name in ipairs(row.options) do
-                    if name ~= "None" then out[#out + 1] = name end
-                end
-                break
-            end
-        end
-    end
-    if #out == 0 then
-        for _, name in ipairs(METER_FALLBACK) do out[#out + 1] = name end
-    end
-    table.sort(out)
-    return out
-end
-
-function MeterKit.parts()
-    local map = {}
-    local char = getChar()
-    if not char then return map end
-    for _, holder in ipairs({ char:FindFirstChild("HumanoidRootPart"), char:FindFirstChild("Head") }) do
-        if holder then
-            for _, c in ipairs(holder:GetChildren()) do
-                local style = c.Name:match("^(.+)Meter$")
-                if style and c:IsA("BillboardGui") then map[style] = c end
-            end
-        end
-    end
-    return map
-end
-
-function MeterKit.apply(name)
-    if not name or name == "" or name == "None" then return false, "pick a meter first" end
-    local have = MeterKit.parts()
-    if not have[name] then return false, "no " .. tostring(name) .. "Meter on the character" end
-    local remoteObj = nil
-    pcall(function()
-        remoteObj = RS.Aero.AeroRemoteServices.PlayerService.UpdateSetting
-    end)
-    local sent = false
-    if remoteObj then
-        sent = pcall(function() remoteObj:FireServer({ "Meter" }, "Type", name) end)
-    end
-    for style, gui in pairs(have) do
-        if style ~= name then pcall(function() gui.Enabled = false end) end
-    end
-    pcall(function() have[name].Enabled = true end)
-    S.meterPick = name
-    return true, name .. (sent and " set" or " set (client only)")
-end
-
---========================================================--
---  REC HELPERS
---========================================================--
-local function joinPlaceKey(key, fallbackId)
-    local r = rawRemote("TeleportService", "JoinPlace")
-        or rawRemote("InterfaceService", "JoinPlace")
-        or JoinPlaceR
-    if not r then notify("REC", "JoinPlace remote missing") return false end
-    task.spawn(function()
-        local ok = pcall(function() return r:InvokeServer(key) end)
-        if not ok and fallbackId then
-            pcall(function() return r:InvokeServer(fallbackId) end)
-        end
-    end)
-    return true
-end
-
-local function joinRec()
-    joinPlaceKey("Rec", S.recPlaceId)
-    notify("REC", "joining Recreational Center...")
-end
-
-local function joinRecQueue()
-    joinPlaceKey("RecQueue", S.recQueuePlaceId)
-    notify("REC", "joining REC queue...")
-end
-
-local READY_TARGETS = {
-    { service = "CourtService",       remote = "Captain",  kind = "event" },
-    { service = "QueueService",       remote = "Ready",    kind = "function", arg = true },
-    { service = "MatchmakingService", remote = "ReadyUp",  kind = "function" },
-}
-
-local function readyTarget()
-    for _, c in ipairs(READY_TARGETS) do
-        local r = rawRemote(c.service, c.remote)
-        if r then return r, c end
-    end
-    return nil, nil
-end
-
-local function recFireReady()
-    local r, c = readyTarget()
-    if not r then S.recReadyLabel = "no ready remote" return false end
-    S.recReadyLabel = c.service .. "." .. c.remote
-    if c.kind == "event" then
-        local ok = pcall(function() r:FireServer() end)
-        if ok then S.recCdCount = (S.recCdCount or 0) + 1 end
-        return ok
-    end
-    task.spawn(function()
-        local ok = pcall(function() return r:InvokeServer(c.arg) end)
-        if ok then S.recCdCount = (S.recCdCount or 0) + 1 end
-    end)
-    return true
-end
-
-local function recLockSeconds()
-    local ok, v = pcall(function() return me:GetAttribute("RecLockedUntil") end)
-    if not ok or type(v) ~= "number" or v <= 0 then return 0 end
-    local ok2, now = pcall(function() return workspace:GetServerTimeNow() end)
-    if not ok2 or type(now) ~= "number" then return 0 end
-    local d = v - now
-    return d > 0 and d or 0
-end
-
-local function autoReady()
-    if recFireReady() then
-        local lock = recLockSeconds()
-        if lock > 0 then
-            notify("REC", "ready sent, bypassing " .. math.ceil(lock) .. "s lockout")
-        else
-            notify("REC", "ready sent (" .. tostring(S.recReadyLabel) .. ")")
-        end
-        return
-    end
-    notify("REC", "no ready remote in this place")
-end
-
-local function recCooldownTick()
-    if S.cleaned or not S.recCdOn then return end
-    local now = os.clock()
-    if now < (S.recCdNext or 0) then return end
-    S.recCdNext = now + math.max(0.1, S.recCdInterval or 0.35)
-    local pid = game.PlaceId
-    local gm = nil
-    pcall(function() gm = workspace:GetAttribute("Gamemode") end)
-    local okPlace = (pid == S.recPlaceId) or (pid == S.recQueuePlaceId)
-        or gm == "RecQueue" or gm == "BlacktopMatchmaking"
-    if not okPlace then return end
-    local pkt = myPkt()
-    if pkt and pktAttr(pkt, "InGame") == true then return end
-    recFireReady()
-end
-
-task.spawn(function()
-    while not S.cleaned do
-        pcall(recCooldownTick)
-        task.wait(0.05)
-    end
-end)
-
-local INVITE_NAMES = { "partyInvitation", "invite", "invitePlayer", "sendInvite", "partyInvite" }
-
-local function inviteRemote()
-    local ps = Svc and Svc:FindFirstChild("PartyService")
-    if not ps then return nil end
-    for _, n in ipairs(INVITE_NAMES) do
-        local c = ps:FindFirstChild(n)
-        if c and (c:IsA("RemoteEvent") or c:IsA("RemoteFunction")) then return c end
-    end
-    return nil
-end
-
-local function inviteAllToRec()
-    local r = inviteRemote()
-    if r then
-        local sent = 0
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= me then
-                local ok
-                if r:IsA("RemoteFunction") then
-                    ok = pcall(function() return r:InvokeServer(p.Name) end)
-                else
-                    ok = pcall(function() r:FireServer(p.Name) end)
-                end
-                if ok then sent = sent + 1 end
-            end
-        end
-        notify("REC", "invited " .. sent .. " via " .. r.Name)
-        return
-    end
-    local mm = rawRemote("MatchmakingService", "AddPlayerToTeam")
-    if not mm then
-        notify("REC", "no invite remote in this place - use it from the REC hub")
-        return
-    end
-    task.spawn(function()
-        local added = 0
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= me then
-                local ok, res = pcall(function() return mm:InvokeServer(p.Name) end)
-                if ok and res then added = added + 1 end
-            end
-        end
-        notify("REC", "lobby add: " .. added .. " accepted")
-    end)
-end
-
-local function bestPassTarget()
-    local root = myRoot()
-    if not root then return nil end
-    local best, bestScore = nil, -1
-    local meP = myPkt()
-    for _, pkt in ipairs(allPackets()) do
-        if pkt ~= meP and not isOpponent(pkt) then
-            local r = pktRoot(pkt)
-            if r then
-                local d = (r.Position - root.Position).Magnitude
-                if d > 3 and d < 45 then
-                    local open = 1
-                    for _, op in ipairs(allPackets()) do
-                        if isOpponent(op) then
-                            local oroot = pktRoot(op)
-                            if oroot and (oroot.Position - r.Position).Magnitude < 6 then
-                                open = 0
-                                break
-                            end
-                        end
-                    end
-                    local score = open * 100 - d
-                    if score > bestScore then best, bestScore = pkt, score end
-                end
-            end
-        end
-    end
-    return best
-end
-
-local function recTryPass(reason, ptype)
-    local pkt = myPkt()
-    if not pkt or not pktHasBall(pkt) then return false end
-    local target = bestPassTarget()
-    if not target then return false end
-    S.recPassTarget = pktName(target)
-    S.recPassType = ptype or 1
-    S.recPassPending = os.clock()
-    S.recPassTries = (S.recPassTries or 0) + 1
-    send(InputS, "Pass", { Target = S.recPassTarget, Type = S.recPassType })
-    pcall(function() send(InputS, "Pass", S.recPassTarget) end)
-    S.statPasses = (S.statPasses or 0) + 1
-    return true
-end
-
---========================================================--
---  SMART FARM SPOTS
---========================================================--
-local HOOP1_X, HOOP1_Z = -48.7, -23.2
-local HOOP2_X, HOOP2_Z =  64.5, -23.2
-
-local SPOTS_3PT_AWAY = {
-    { name = "Top Key",      pos = Vector3.new(29.20, 2, -19.89) },
-    { name = "Right Wing",   pos = Vector3.new(34.87, 2,   0.75) },
-    { name = "Left Wing",    pos = Vector3.new(33.44, 2, -43.91) },
-    { name = "Right Corner", pos = Vector3.new(65.54, 2,  13.06) },
-    { name = "Left Corner",  pos = Vector3.new(40.92, 2, -34.49) },
-}
-local SPOTS_2PT_AWAY = {
-    { name = "Right Elbow",  pos = Vector3.new(40.92, 2, -17.00) },
-    { name = "Right Key",    pos = Vector3.new(40.92, 2, -12.72) },
-    { name = "Left Key",     pos = Vector3.new(40.92, 2, -34.86) },
-}
-
-local function mirrorSpots(list)
-    local out = {}
-    for _, s in ipairs(list) do
-        local mx = HOOP1_X - (s.pos.X - HOOP2_X)
-        local mz = HOOP1_Z + (s.pos.Z - HOOP2_Z)
-        out[#out+1] = { name = s.name, pos = Vector3.new(mx, s.pos.Y, mz) }
-    end
-    return out
-end
-
-local SPOTS_3PT_HOME = mirrorSpots(SPOTS_3PT_AWAY)
-local SPOTS_2PT_HOME = mirrorSpots(SPOTS_2PT_AWAY)
-
-local function mySpotLists()
-    local pkt = myPkt()
-    local isHome = pkt and pktAttr(pkt, "HomeTeam")
-    if isHome then return SPOTS_3PT_HOME, SPOTS_2PT_HOME end
-    return SPOTS_3PT_AWAY, SPOTS_2PT_AWAY
-end
-
-local function spotIsContested(pos, minDist)
-    minDist = minDist or 5
-    for _, pkt in ipairs(allPackets()) do
-        if isOpponent(pkt) then
-            local r = pktRoot(pkt)
-            if r and (r.Position - pos).Magnitude < minDist then return true end
-        end
-    end
-    return false
-end
-
-local function resolveSpot()
-    local list3, list2 = mySpotLists()
-    local mode = S.smartSpotMode or "3PT"
-    local function pickFrom(list, key, rotKey)
-        local sel = S[key]
-        if sel == "Rotate" then
-            local idx = (S[rotKey] or 1)
-            if idx > #list then idx = 1 end
-            return list[idx]
-        end
-        for _, s in ipairs(list) do
-            if s.name == sel then return s end
-        end
-        return list[1]
-    end
-    if mode == "3PT" then
-        return pickFrom(list3, "smartSpot3", "smartRotIdx3")
-    elseif mode == "2PT" then
-        return pickFrom(list2, "smartSpot2", "smartRotIdx2")
-    else
-        local s3 = pickFrom(list3, "smartSpot3", "smartRotIdx3")
-        if s3 and not spotIsContested(s3.pos, 5) then return s3 end
-        return pickFrom(list2, "smartSpot2", "smartRotIdx2")
-    end
-end
-
-local function advanceRot()
-    local list3, list2 = mySpotLists()
-    local mode = S.smartSpotMode or "3PT"
-    if mode ~= "2PT" and S.smartSpot3 == "Rotate" then
-        S.smartRotIdx3 = ((S.smartRotIdx3 or 1) % #list3) + 1
-    end
-    if mode ~= "3PT" and S.smartSpot2 == "Rotate" then
-        S.smartRotIdx2 = ((S.smartRotIdx2 or 1) % #list2) + 1
-    end
-end
-
-local function teammateBallCarrier()
-    local meP = myPkt()
-    for _, pkt in ipairs(allPackets()) do
-        if pkt ~= meP and not isOpponent(pkt) and pktHasBall(pkt) then return pkt end
-    end
-    return nil
-end
-
-local function pickDefTarget()
-    local meP = myPkt()
-    if not meP then return nil end
-    local isHome = pktAttr(meP, "HomeTeam")
-    local defBasket = isHome
-        and Vector3.new(HOOP1_X, 18.1, HOOP1_Z)
-        or  Vector3.new(HOOP2_X, 14.9, HOOP2_Z)
-    local best, bestDist = nil, math.huge
-    for _, pkt in ipairs(allPackets()) do
-        if isOpponent(pkt) then
-            local r = pktRoot(pkt)
-            if r then
-                local d = (r.Position - defBasket).Magnitude
-                if d < bestDist then best, bestDist = pkt, d end
-            end
-        end
-    end
-    return best
-end
-
-local function smartFarmTick()
-    if S.cleaned then return end
-    local pkt = myPkt()
-    local root = pktRoot(pkt)
-    if not pkt or not root then S.smartState = "RECOVERING" return end
-
-    local now = os.clock()
-    local weHaveBall = pktHasBall(pkt)
-    local teamHasBall = weHaveBall or (teammateBallCarrier() ~= nil)
-
-    if S.smartDebug and now - (S.smartDebugLast or 0) > 1.2 then
-        S.smartDebugLast = now
-        notify("SmartFarm", "[" .. tostring(S.smartState) .. "]")
-    end
-
-    if S.smartState == "IDLE" then
-        S.smartState = teamHasBall and "OUR_TEAM_POSSESSION" or "OPPONENT_INBOUNDING"
-
-    elseif S.smartState == "OUR_TEAM_POSSESSION" then
-        if not teamHasBall then
-            S.smartState = "OPPONENT_INBOUNDING"
-            S.smartDefTarget = nil
-            return
-        end
-        local spotEntry = resolveSpot()
-        S.smartOffSpot = spotEntry and spotEntry.pos
-        S.smartState = "MOVING_TO_OFFENSE"
-
-    elseif S.smartState == "MOVING_TO_OFFENSE" then
-        if not teamHasBall then
-            S.smartState = "OPPONENT_INBOUNDING"
-            stopMoving()
-            return
-        end
-        local sp = S.smartOffSpot
-        if not sp then S.smartState = "OUR_TEAM_POSSESSION" return end
-        local dist = (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(sp.X, 0, sp.Z)).Magnitude
-        if dist < 3.5 then
-            advanceRot()
-            S.smartState = "FINDING_OPEN_SPOT"
-            stopMoving()
-        else
-            moveTowards(Vector3.new(sp.X, root.Position.Y, sp.Z), 1)
-        end
-
-    elseif S.smartState == "FINDING_OPEN_SPOT" then
-        if not teamHasBall then
-            S.smartState = "OPPONENT_INBOUNDING"
-            stopMoving()
-            return
-        end
-        local sp = S.smartOffSpot
-        if not sp or spotIsContested(sp, 4) then
-            advanceRot()
-            local spotEntry = resolveSpot()
-            local newSpot = spotEntry and spotEntry.pos
-            if newSpot and newSpot ~= sp then
-                S.smartOffSpot = newSpot
-                S.smartState = "MOVING_TO_OFFENSE"
-            end
-        else
-            stopMoving()
-        end
-
-    elseif S.smartState == "OPPONENT_INBOUNDING" then
-        if teamHasBall then
-            S.smartState = "OUR_TEAM_POSSESSION"
-            return
-        end
-        S.smartDefTarget = pickDefTarget()
-        if S.smartDefTarget then
-            S.smartState = "TARGETING_OPPONENT"
-        else
-            stopMoving()
-        end
-
-    elseif S.smartState == "TARGETING_OPPONENT" then
-        if teamHasBall then
-            S.smartState = "OUR_TEAM_POSSESSION"
-            S.smartDefTarget = nil
-            stopMoving()
-            return
-        end
-        local tgt = S.smartDefTarget
-        if not tgt then S.smartState = "RECOVERING" return end
-        local tgtRoot = pktRoot(tgt)
-        if not tgtRoot then
-            S.smartDefTarget = nil
-            S.smartState = "RECOVERING"
-            return
-        end
-        local dist = (tgtRoot.Position - root.Position).Magnitude
-        if dist < 18 then
-            S.smartState = "DEFENDING"
-        else
-            moveTowards(Vector3.new(tgtRoot.Position.X, root.Position.Y, tgtRoot.Position.Z), 1)
-        end
-
-    elseif S.smartState == "DEFENDING" then
-        if teamHasBall then
-            S.smartState = "OUR_TEAM_POSSESSION"
-            S.smartDefTarget = nil
-            stopMoving()
-            return
-        end
-        local tgt = S.smartDefTarget
-        if not tgt then S.smartState = "RECOVERING" return end
-        local tgtRoot = pktRoot(tgt)
-        if not tgtRoot then
-            S.smartDefTarget = nil
-            S.smartState = "RECOVERING"
-            return
-        end
-        if now - (S.smartLastSwitch or 0) > 2.0 then
-            local ballCarrier, bcd = nearestOpponent(30, true)
-            if ballCarrier and ballCarrier ~= tgt and bcd < 20 then
-                S.smartLastSwitch = now
-                S.smartDefTarget = ballCarrier
-                tgt = ballCarrier
-                tgtRoot = pktRoot(tgt)
-                if not tgtRoot then S.smartState = "RECOVERING" return end
-            end
-        end
-        local me2 = myPkt()
-        local isHome2 = me2 and pktAttr(me2, "HomeTeam")
-        local defBasket2 = isHome2
-            and Vector3.new(HOOP1_X, 18.1, HOOP1_Z)
-            or  Vector3.new(HOOP2_X, 14.9, HOOP2_Z)
-        local toBasket2 = defBasket2 - tgtRoot.Position
-        toBasket2 = Vector3.new(toBasket2.X, 0, toBasket2.Z)
-        if toBasket2.Magnitude > 0.01 then
-            local defTarget = tgtRoot.Position + toBasket2.Unit * 1.5
-            moveTowards(Vector3.new(defTarget.X, root.Position.Y, defTarget.Z), 0.85)
-        end
-        if (tgtRoot.Position - root.Position).Magnitude > 30 then
-            S.smartState = "TARGETING_OPPONENT"
-        end
-
-    elseif S.smartState == "RECOVERING" then
-        stopMoving()
-        if teamHasBall then
-            S.smartState = "OUR_TEAM_POSSESSION"
-        elseif now - (S.smartLastSwitch or 0) > 1.0 then
-            S.smartLastSwitch = now
-            S.smartState = "OPPONENT_INBOUNDING"
-        end
-    end
-end
-
---========================================================--
---  WEBHOOK / STATS
---========================================================--
-local function httpPost(url, body)
-    local headers = { ["Content-Type"] = "application/json" }
-    local senders = {
-        function() return request({ Url = url, Method = "POST", Headers = headers, Body = body }) end,
-        function() return http_request({ Url = url, Method = "POST", Headers = headers, Body = body }) end,
-        function() return syn.request({ Url = url, Method = "POST", Headers = headers, Body = body }) end,
-        function() return http.request({ Url = url, Method = "POST", Headers = headers, Body = body }) end,
-    }
-    for _, fn in ipairs(senders) do
-        local ok = pcall(fn)
-        if ok then return true end
-    end
-    return false
-end
-
-local function webhookReady()
-    local url = tostring(S.webhookURL or ""):gsub("%s", "")
-    if url == "" then return nil, "set a webhook URL first" end
-    if not url:find("discord%.com/api/webhooks/") then return nil, "not a discord webhook URL" end
-    return url
-end
-
-local function sendWebhookPayload(payload, label)
-    local url, why = webhookReady()
-    if not url then S.webhookStatus = tostring(why) return false end
-    local ok, body = pcall(function() return Http:JSONEncode(payload) end)
-    if not ok then S.webhookStatus = "encode failed" return false end
-    local sent = httpPost(url, body)
-    S.webhookStatus = tostring(label) .. (sent and ": sent" or ": FAILED")
-    S.webhookLastAt = os.clock()
-    return sent
-end
-
-local function recStatsRead()
-    local pg = me:FindFirstChild("PlayerGui")
-    local st = pg and pg:FindFirstChild("Statsheet")
-    local main = nil
-    if st then
-        for _, d in ipairs(st:GetDescendants()) do
-            if d.Name == "Main" and d:IsA("Frame") then main = d break end
-        end
-    end
-    if not main then S.liveRowFound = false return false end
-
-    local function num(parent, name)
-        local c = parent and parent:FindFirstChild(name)
-        if not c or not c:IsA("TextLabel") then return nil end
-        return tonumber((c.Text or ""):match("-?%d+"))
-    end
-    local function txt(parent, name)
-        local c = parent and parent:FindFirstChild(name)
-        if not c or not c:IsA("TextLabel") then return nil end
-        return c.Text
-    end
-
-    local hdr = main:FindFirstChild("Header")
-    local score = hdr and hdr:FindFirstChild("Score")
-    if score then
-        S.liveHomeScore = num(score, "HomeScore") or S.liveHomeScore or 0
-        S.liveAwayScore = num(score, "AwayScore") or S.liveAwayScore or 0
-    end
-    local q = hdr and hdr:FindFirstChild("Quarters")
-    if q then
-        local hr, ar = q:FindFirstChild("HomeRow"), q:FindFirstChild("AwayRow")
-        for i = 1, 4 do
-            local a, b = num(hr, tostring(i)), num(ar, tostring(i))
-            if a then S.quarterHome[i] = a end
-            if b then S.quarterAway[i] = b end
-        end
-    end
-
-    local gGui = pg and pg:FindFirstChild("GradeUI")
-    local gMain = gGui and gGui:FindFirstChild("MainFrame")
-    local gBox = gMain and gMain:FindFirstChild("Grade")
-    local gTxt = gBox and gBox:FindFirstChild("Grade")
-    if gTxt and gTxt:IsA("TextLabel") and gTxt.Text ~= "" then S.liveGrade = gTxt.Text end
-
-    local row, side = nil, ""
-    for _, s in ipairs({ "Home", "Away" }) do
-        local f = main:FindFirstChild(s)
-        local list = f and f:FindFirstChild("List")
-        if list then
-            for _, r in ipairs(list:GetChildren()) do
-                local pn = r:FindFirstChild("PlayerName")
-                if pn and pn:IsA("TextLabel") and pn.Text == me.Name then row, side = r, s end
-            end
-        end
-    end
-    if not row then S.liveRowFound = false return false end
-    S.liveRowFound = true
-    S.liveSide = side
-    S.livePts = num(row, "PTS") or 0
-    S.liveAst = num(row, "AST") or 0
-    S.liveReb = num(row, "REB") or 0
-    S.liveBlk = num(row, "BLK") or 0
-    S.liveStl = num(row, "STL") or 0
-    S.liveTov = num(row, "TOV") or 0
-    S.liveFls = num(row, "FLS") or 0
-    S.livePlusMinus = num(row, "+/-") or 0
-    S.liveFgs = txt(row, "FGS") or "0/0"
-    S.live3ps = txt(row, "3PS") or "0/0"
-    S.liveFts = txt(row, "FTS") or "0/0"
-    return true
-end
-
-local function recStatsSnapshot()
-    local mins = 0
-    if S.recMatchStartAt and S.recMatchStartAt > 0 then
-        mins = (os.clock() - S.recMatchStartAt) / 60
-    end
-    local team = tonumber(S.liveHomeScore) or 0
-    local opp = tonumber(S.liveAwayScore) or 0
-    if S.liveSide == "Away" then team, opp = opp, team end
-    local qp = {}
-    for i = 1, 4 do
-        qp[#qp + 1] = string.format("Q%d %d-%d", i, S.quarterHome[i] or 0, S.quarterAway[i] or 0)
-    end
-    return {
-        player = me.Name .. " (" .. tostring(me.DisplayName) .. ")",
-        place = tostring(game.PlaceId),
-        state = tostring(S.recState),
-        team_score = team,
-        opp_score = opp,
-        points = S.livePts or 0,
-        assists = S.liveAst or 0,
-        rebounds = S.liveReb or 0,
-        steals = S.liveStl or 0,
-        blocks = S.liveBlk or 0,
-        turnovers = S.liveTov or 0,
-        fouls = S.liveFls or 0,
-        plusminus = S.livePlusMinus or 0,
-        fgs = S.liveFgs or "0/0",
-        tps = S.live3ps or "0/0",
-        fts = S.liveFts or "0/0",
-        grade = S.liveGrade or "-",
-        side = S.liveSide ~= "" and S.liveSide or "?",
-        minutes = string.format("%.1f", mins),
-        quarters = table.concat(qp, " · "),
-        live = S.liveRowFound,
-    }
-end
-
-local function statFields(d)
-    return {
-        { name = "PTS",   value = tostring(d.points),    inline = true },
-        { name = "REB",   value = tostring(d.rebounds),  inline = true },
-        { name = "AST",   value = tostring(d.assists),   inline = true },
-        { name = "STL",   value = tostring(d.steals),    inline = true },
-        { name = "BLK",   value = tostring(d.blocks),    inline = true },
-        { name = "TOV",   value = tostring(d.turnovers), inline = true },
-        { name = "FOULS", value = tostring(d.fouls),     inline = true },
-        { name = "+/-",   value = tostring(d.plusminus), inline = true },
-        { name = "FG",    value = tostring(d.fgs),       inline = true },
-        { name = "3PT",   value = tostring(d.tps),       inline = true },
-        { name = "FT",    value = tostring(d.fts),       inline = true },
-        { name = "GRADE", value = tostring(d.grade),     inline = true },
-    }
-end
-
-local function sendMatchWebhook(label, color)
-    recStatsRead()
-    local d = recStatsSnapshot()
-    local fields = {
-        { name = "Player", value = d.player, inline = true },
-        { name = "Side",   value = d.side,   inline = true },
-        { name = "Score",  value = d.team_score .. " - " .. d.opp_score, inline = true },
-    }
-    for _, f in ipairs(statFields(d)) do fields[#fields + 1] = f end
-    fields[#fields + 1] = { name = "Quarters", value = d.quarters:sub(1, 1000), inline = false }
-    fields[#fields + 1] = { name = "Minutes", value = d.minutes, inline = true }
-    fields[#fields + 1] = { name = "Source", value = d.live and "live box score" or "hub counters", inline = true }
-    sendWebhookPayload({
-        username = "Vision Hub - Practical",
-        embeds = { {
-            title = "REC game - " .. tostring(label or "final"),
-            color = color or 10181046,
-            fields = fields,
-            footer = { text = "place " .. d.place },
-        } },
-    }, "match")
-end
-
-local function sendQuarterWebhook(qno)
-    recStatsRead()
-    local d = recStatsSnapshot()
-    local fields = {
-        { name = "Quarter", value = "Q" .. tostring(qno), inline = true },
-        { name = "Score",   value = tostring(S.quarterHome[qno] or 0) .. " - " .. tostring(S.quarterAway[qno] or 0), inline = true },
-        { name = "Running", value = d.team_score .. " - " .. d.opp_score, inline = true },
-    }
-    for _, f in ipairs(statFields(d)) do fields[#fields + 1] = f end
-    sendWebhookPayload({
-        username = "Vision Hub - Practical",
-        embeds = { {
-            title = string.format("REC - end of Q%d", qno),
-            color = 3447003,
-            fields = fields,
-            footer = { text = "place " .. d.place },
-        } },
-    }, "quarter " .. tostring(qno))
-end
-
-local function sendWebhookTest()
-    sendWebhookPayload({
-        username = "Vision Hub - Practical",
-        content = "Webhook test from Vision Hub - Practical Basketball - working.",
-    }, "test")
-end
-
-local WEBHOOK_FILE = "VisionHub_webhook.txt"
-local function saveWebhookFile()
-    if type(writefile) ~= "function" then return end
-    pcall(writefile, WEBHOOK_FILE,
-        (S.webhookOn and "1" or "0") .. "\n" .. tostring(S.webhookURL or ""))
-end
-local function loadWebhookFile()
-    if type(isfile) ~= "function" or type(readfile) ~= "function" then return end
-    local ok, exists = pcall(isfile, WEBHOOK_FILE)
-    if not ok or not exists then return end
-    local ok2, raw = pcall(readfile, WEBHOOK_FILE)
-    if not ok2 or type(raw) ~= "string" then return end
-    local on, url = raw:match("^(%d)\r?\n?(.*)$")
-    if on then S.webhookOn = (on == "1") end
-    if url and url ~= "" then S.webhookURL = (url:gsub("%s", "")) end
-end
-loadWebhookFile()
-
-local function recResetStats()
-    S.statShots = 0
-    S.statPasses = 0
-    S.statSteals = 0
-    S.statRebounds = 0
-    S.recMatchStartAt = os.clock()
-end
-
-local function recQuarterTick()
-    if not S.recMatchSeen then return end
-    if not recStatsRead() then return end
-    local cur = 0
-    for i = 1, 4 do
-        if (S.quarterHome[i] or 0) > 0 or (S.quarterAway[i] or 0) > 0 then cur = i end
-    end
-    if cur > (S.quarterSeen or 0) then
-        local ended = (S.quarterSeen or 0)
-        S.quarterSeen = cur
-        if ended >= 1 and ended <= 4 and not S.quarterSent[ended]
-            and S.webhookOn and S.webhookQuarters then
-            S.quarterSent[ended] = true
-            task.spawn(sendQuarterWebhook, ended)
-        end
-    end
-end
-
-local function recMatchTick(pkt, now)
-    recQuarterTick()
-    local inGame = pkt and pktAttr(pkt, "InGame") == true
-    if inGame then
-        if not S.recMatchSeen then
-            S.recMatchSeen = true
-            S.recMatchEndAt = nil
-            recResetStats()
-            S.quarterSeen = 0
-            S.quarterSent = {}
-            S.quarterHome = {}
-            S.quarterAway = {}
-        end
-        return
-    end
-    if not S.recMatchSeen then return end
-    if not S.recMatchEndAt then
-        S.recMatchEndAt = now
-        if S.webhookOn and S.webhookOnEnd then
-            task.delay(2.5, function()
-                task.spawn(sendMatchWebhook, "final", 5763719)
-            end)
-        end
-    end
-    if not S.recAutoQueue then return end
-    if now - S.recMatchEndAt < (S.recAutoQueueDelay or 4) then return end
-    if now < (S.recQueueCooldown or 0) then return end
-    if game.PlaceId == S.recQueuePlaceId then
-        S.recMatchSeen = false
-        return
-    end
-    S.recQueueCooldown = now + 20
-    S.recMatchSeen = false
-    S.recMatchEndAt = nil
-    notify("REC", "game over - back to the queue")
-    joinRecQueue()
-end
-
---========================================================--
---  SPOOFERS
---========================================================--
-local function applySpoofs()
-    pcall(function()
-        local pg = me:FindFirstChild("PlayerGui")
-        if not pg then return end
-        -- best-effort client display spoof; structure varies by place
-        for _, d in ipairs(pg:GetDescendants()) do
-            if d:IsA("TextLabel") or d:IsA("TextButton") then
-                local t = d.Text or ""
-                if S.spoofName and (t == me.Name or t == me.DisplayName) then
-                    d.Text = tostring(S.nameValue or "Practical")
-                end
-            end
-        end
-    end)
-end
-
---========================================================--
---  REC FARM (simplified core loop)
---========================================================--
-local function recFarmTick()
-    if not S.recFarm then return end
-    local pkt = myPkt()
-    local root = pktRoot(pkt)
-    if not pkt or not root then
-        S.recState = "no character"
-        return
-    end
-    local now = os.clock()
-    local myPos = root.Position
-    local held = pktHasBall(pkt)
-
-    recMatchTick(pkt, now)
-
-    -- possession helpers
-    local mates, opps = {}, {}
-    for _, p in ipairs(allPackets()) do
-        if p ~= pkt then
-            local r = pktRoot(p)
-            local e = { pkt = p, pos = r and r.Position or myPos, root = r }
-            if isOpponent(p) then opps[#opps + 1] = e else mates[#mates + 1] = e end
-        end
-    end
-
-    local teamHasBall = held
-    local oppHasBall = false
-    for _, e in ipairs(mates) do if pktHasBall(e.pkt) then teamHasBall = true end end
-    for _, e in ipairs(opps) do if pktHasBall(e.pkt) then oppHasBall = true end end
-
-    local poss = held and "us" or (teamHasBall and "team" or (oppHasBall and "them" or "loose"))
-
-    if S.recFarmSprint then
-        if not S.sprintOn then
-            S.sprintOn = true
-            send(InputS, "Sprint", true)
-        end
-    end
-
-    -- offense: we have ball
-    if held then
-        local _, dist = nearestOpponent(150, false)
-        if shotAllowed() and (dist or 999) >= (S.shootOpenRange or 7)
-            and now - (S.lastRelease or 0) > 1.0 and not S.shotArmed then
-            S.recState = "shooting"
-            stopMoving()
-            shootNow()
-            S.statShots = (S.statShots or 0) + 1
-            return
-        end
-        -- try pass if heavily contested
-        if dist and dist < 4 then
-            if recTryPass("pressured", 1) then
-                S.recState = "passing under pressure"
-                return
-            end
-        end
-        -- move toward open look / hoop
-        local goal = goalPosition()
-        if goal then
-            S.recState = "attacking"
-            moveTowards(Vector3.new(goal.X, myPos.Y, goal.Z), 0.85)
-        end
-        return
-    end
-
-    -- teammate has ball: space out
-    if teamHasBall then
-        local carrier = teammateBallCarrier()
-        local croot = carrier and pktRoot(carrier)
-        if croot then
-            local away = myPos - croot.Position
-            away = Vector3.new(away.X, 0, away.Z)
-            if away.Magnitude < 8 then
-                S.recState = "spacing"
-                if away.Magnitude > 0.1 then
-                    moveTowards(myPos + away.Unit * 12, 0.8)
-                end
-            else
-                stopMoving()
-                S.recState = "open"
-            end
-        end
-        return
-    end
-
-    -- defense
-    if oppHasBall then
-        local carrier, cd = nearestOpponent(200, true)
-        if carrier then
-            local oroot = pktRoot(carrier)
-            if oroot then
-                S.recState = "guarding"
-                guardMove(oroot, cd or 10)
-                if S.autoSteal and cd and cd < S.guardRange and now - (S.recLastSteal or 0) > 0.45 then
-                    S.recLastSteal = now
-                    S.statSteals = (S.statSteals or 0) + 1
-                    send(InputS, "Steal")
-                end
-                local act = pktAttr(carrier, "Action")
-                if S.autoContest and cd and cd < 7 and
-                    (act == "Shooting" or act == "Dunking" or act == "Gathering") and
-                    now - (S.lastJump or 0) > 0.9 then
-                    S.lastJump = now
-                    send(InputS, "Jump")
-                end
-            end
-        else
-            stopMoving()
-            S.recState = "defending (holding)"
-        end
-        return
-    end
-
-    -- loose ball
-    local ball = looseBall(120)
-    if ball and inCourt(ball.Position) then
-        if S.recRebound then
-            S.recState = "chasing loose ball"
-            moveTowards(ball.Position, 1)
-        else
-            local goal = goalPosition()
-            if goal then
-                local dir = ball.Position - goal
-                dir = Vector3.new(dir.X, 0, dir.Z)
-                local box = goal
-                if dir.Magnitude > 0.01 then box = goal + dir.Unit * 7 end
-                S.recState = "boxing out"
-                moveTowards(Vector3.new(box.X, myPos.Y, box.Z), 0.9)
-            end
-        end
-        return
-    end
-
-    S.recState = "waiting"
-    stopMoving()
-end
-
---========================================================--
---  MAIN FRAME LOOP
---========================================================--
-local function frameStep()
-    if S.cleaned then return end
-
-    local pkt = myPkt()
-    local root = pktRoot(pkt)
-    local held = pktHasBall(pkt)
-
-    -- Auto Time (timer mode)
-    if S.shotArmed and S.autoTime and not S.releaseAtFull then
-        if os.clock() - S.shotT0 >= releaseDelay() then
-            doRelease("timer")
-        end
-    end
-
-    guardTick(pkt)
-
-    if S.ballMag and root and not held then pcall(magnetTick, root) end
-
-    local movementClaimed = false
-
-    if S.recFarm then
-        movementClaimed = true
-        pcall(recFarmTick)
-    end
-
-    if not movementClaimed and (S.autoGuard or S.autoSteal) and root then
-        local carrier, cd = nearestOpponent(S.guardRange + 20, true)
-        if carrier and cd then
-            local oroot = pktRoot(carrier)
-            if oroot then
-                if S.autoGuard then
-                    guardMove(oroot, cd)
-                    movementClaimed = true
-                end
-                if S.autoSteal and cd < S.guardRange and os.clock() - S.lastSteal > 0.45 then
-                    S.lastSteal = os.clock()
-                    S.statSteals = (S.statSteals or 0) + 1
-                    send(InputS, "Steal")
-                end
-            end
-        elseif S.autoGuard then
-            S.guardApproaching = false
-            if S.guardState then setGuard(false) end
-            stopMoving()
-        end
-    end
-
-    if S.autoContest and root then
-        local shooter, sd = nearestOpponent(9, true)
-        local act = shooter and pktAttr(shooter, "Action") or ""
-        S.contestAction = tostring(act)
-        if shooter and sd and (act == "Shooting" or act == "Dunking" or act == "Gathering" or act == "CatchingPass") then
-            if not movementClaimed then moveTowards(pktRoot(shooter).Position, 1) end
-            if os.clock() - S.lastJump > 0.8 then
-                S.lastJump = os.clock()
-                send(InputS, "Jump")
-            end
-        end
-    end
-
-    if not movementClaimed and S.autoShoot and held and not S.shotArmed then
-        local _, dist = nearestOpponent(150, false)
-        if shotAllowed() and (dist or 999) >= S.shootOpenRange
-            and os.clock() - S.lastRelease > 1.0 then
-            stopMoving()
-            shootNow()
-        end
-    end
-
-    if S.offenseGuard and root and not held then
-        local carrier = nearestOpponent(100, true)
-        if carrier then
-            local oroot2 = pktRoot(carrier)
-            if oroot2 and os.clock() - (S.lastOffGuard or 0) > 0.08 then
-                S.lastOffGuard = os.clock()
-                moveTowards(oroot2.Position, 1)
-                movementClaimed = true
-            end
-        end
-    end
-
-    if S.smartFarm and not movementClaimed then
-        pcall(smartFarmTick)
-        movementClaimed = true
-    end
-
-    if S.autoClutch and ClutchR then
-        pcall(function()
-            if pktAttr(pkt, "Action") ~= "Dunking" then return end
-            local nowAC = os.clock()
-            if nowAC - (S.lastClutchAt or 0) < 0.5 then return end
-            S.lastClutchAt = nowAC
-            ClutchR:FireServer(true)
-        end)
-    end
-
-    if S.autoBlowBy and held and not movementClaimed then
-        local now_bb = os.clock()
-        if now_bb - (S.blowByLast or 0) > 1.2 then
-            pcall(function()
-                local rootBB = myRoot()
-                if not rootBB then return end
-                local facingDir = rootBB.CFrame.LookVector
-                for _, op in ipairs(allPackets()) do
-                    if isOpponent(op) then
-                        local or2 = pktRoot(op)
-                        if or2 then
-                            local toOpp = (or2.Position - rootBB.Position)
-                            local dist = toOpp.Magnitude
-                            if dist < 4 and facingDir:Dot(toOpp.Unit) > 0.5 then
-                                S.blowByLast = now_bb
-                                send(InputS, "Sprint", { Sprinting = true })
-                                send(InputS, "MoveDirection", { X = facingDir.X, Y = 0, Z = facingDir.Z })
-                                playDribble("Crossover")
-                                movementClaimed = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-
-    if S.ankleBreaker and held then
-        local now_ab = os.clock()
-        if now_ab - (S.ankleLastFire or 0) > 0.8 then
-            pcall(function()
-                local rootAB = myRoot()
-                if not rootAB then return end
-                for _, op in ipairs(allPackets()) do
-                    if isOpponent(op) then
-                        local rop = pktRoot(op)
-                        if rop then
-                            local dist = (rop.Position - rootAB.Position).Magnitude
-                            local act = tostring(pktAttr(op, "Action") or ""):lower()
-                            local reaching = act:find("steal") or act:find("reach") or act:find("defend")
-                            if dist < 3.5 or (dist < 5.5 and reaching) then
-                                S.ankleLastFire = now_ab
-                                playDribble(S.anklebreakerMove)
-                                break
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-
-    if S.infiniteStamina then
-        pcall(function()
-            local pktIS = myPkt()
-            if pktIS then
-                if not S.stamMax then
-                    local mx = pktIS.model and pktIS.model:GetAttribute("MaxStamina")
-                    S.stamMax = type(mx) == "number" and mx or 100
-                end
-                setAttr(pktIS, "Stamina", S.stamMax)
-            end
-        end)
-    end
-
-    sprintTick(pkt)
-
-    -- CFrame speed
-    if S.cfSpeed and root then
-        local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
-        if hum and hum.MoveDirection.Magnitude > 0 then
-            root.CFrame = root.CFrame + hum.MoveDirection * ((S.cfSpeedValue or 40) / 60)
-        end
-    end
-
-    -- Speed with ball
-    if S.speedWithBall and held and root then
-        local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function() hum.WalkSpeed = S.swbSpeed or 34 end) end
-    end
-
-    -- Hip height
-    if S.hipHeight and root then
-        pcall(function()
-            local hum = root.Parent and root.Parent:FindFirstChildOfClass("Humanoid")
-            if hum then
-                if not S.hipBaseY then S.hipBaseY = hum.HipHeight end
-                hum.HipHeight = S.hipValue or 2
-            end
-        end)
-    end
-
-    if S.spoofCoins or S.spoofRank or S.spoofOverall or S.spoofName then
-        applySpoofs()
-    end
-end
-
-pcall(function() RunService:UnbindFromRenderStep("VH_Practical") end)
-RunService:BindToRenderStep("VH_Practical", Enum.RenderPriority.Character.Value + 1, frameStep)
-
-track(RunService.Heartbeat:Connect(function()
-    if S.cleaned then return end
-    local pkt = myPkt()
-    if not pkt then return end
-    pcall(guardTick, pkt)
-    pcall(sprintTick, pkt)
-end))
-
---========================================================--
---  AUTO PERFECT (original Vision Hub feature)
---========================================================--
-local PracticalLeft = Tabs.Practical:AddLeftGroupbox("Auto Perfect")
-local PracticalRight = Tabs.Practical:AddRightGroupbox("Info")
-
-PracticalLeft:AddToggle("AutoPerfect", {
+PracticalGroup:AddToggle("AutoPerfect", {
     Text = "Auto Perfect",
     Default = false,
 })
 
-PracticalLeft:AddSlider("MeterOffset", {
+--========================================================--
+--  METER OFFSET SLIDER (NEW)
+--========================================================--
+PracticalGroup:AddSlider("MeterOffset", {
     Text = "Meter Offset",
     Default = -1.239,
     Min = -3,
@@ -2118,387 +47,212 @@ PracticalLeft:AddSlider("MeterOffset", {
     Rounding = 3,
 })
 
-PracticalRight:AddLabel("Original Vision Hub timing.")
-PracticalRight:AddLabel("Uses meterOffset attribute.")
-PracticalRight:AddLabel("Works with Vertical / Bat /")
-PracticalRight:AddLabel("Rocket / Hoop / Roblox meters.")
+--========================================================--
+--  SERVICES + CHARACTER SETUP
+--========================================================--
+repeat task.wait() until game:IsLoaded()
 
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+
+local function getChar()
+    return workspace.Characters[player.Name]
+end
+
+--========================================================--
+--  AUTO PERFECT SCRIPT (UPDATED TO USE SLIDER)
+--========================================================--
 local function setupAutoPerfect()
     local char = getChar()
     if not char then return end
-    track(char:GetAttributeChangedSignal("meterOffset"):Connect(function()
+
+    char:GetAttributeChangedSignal("meterOffset"):Connect(function()
         if not Toggles.AutoPerfect.Value then return end
+
         local offset = char:GetAttribute("meterOffset")
         if not offset then return end
-        local trigger = Options.MeterOffset.Value
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local head = char:FindFirstChild("Head")
 
-        if hrp and hrp:FindFirstChild("VerticalMeter") and hrp.VerticalMeter.Enabled then
+        local trigger = Options.MeterOffset.Value
+
+        -- Vertical Meter
+        if char.HumanoidRootPart.VerticalMeter.Enabled == true then
             if offset.Y <= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
-        elseif hrp and hrp:FindFirstChild("BatMeter") and hrp.BatMeter.Enabled then
+
+        -- Bat Meter
+        elseif char.HumanoidRootPart.BatMeter.Enabled == true then
             if offset.Y <= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
-        elseif hrp and hrp:FindFirstChild("RocketMeter") and hrp.RocketMeter.Enabled then
+
+        -- Rocket Meter
+        elseif char.HumanoidRootPart.RocketMeter.Enabled == true then
             if offset.Y <= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
-        elseif head and head:FindFirstChild("HoopMeter") and head.HoopMeter.Enabled then
+
+        -- Hoop Meter
+        elseif char.Head.HoopMeter.Enabled == true then
             if offset.Y >= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
-        elseif head and head:FindFirstChild("RobloxMeter") and head.RobloxMeter.Enabled then
+
+        -- Roblox Meter
+        elseif char.Head.RobloxMeter.Enabled == true then
             if offset.X >= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
+
+        -- Default fallback
         else
             if offset.Y <= trigger then
                 RS.Aero.AeroRemoteServices.InputService.Shoot:FireServer({Shoot = false})
             end
         end
-    end))
+    end)
 end
 
+-- Initial setup
 setupAutoPerfect()
-me.CharacterAdded:Connect(function()
+
+-- Re-setup on respawn
+player.CharacterAdded:Connect(function()
     task.wait(1)
     setupAutoPerfect()
 end)
 
 --========================================================--
---  SHOOTING TAB
+--  COSMETICS (Client-side only)
 --========================================================--
-local ShootLeft = Tabs.Shooting:AddLeftGroupbox("Auto Shoot")
-local ShootRight = Tabs.Shooting:AddRightGroupbox("Shot Meter")
-local ShootTime = Tabs.Shooting:AddLeftGroupbox("Auto Time")
+local ACC_CATS = { "Hats", "Faces", "Shirts", "Pants", "Shoes", "Accessories", "Emotes" }
 
-ShootLeft:AddToggle("AutoShoot", {
-    Text = "Auto Shoot When Open",
-    Default = false,
-    Callback = function(v) S.autoShoot = v end,
-})
-ShootLeft:AddSlider("ShootOpenRange", {
-    Text = "Open Range",
-    Default = 7, Min = 3, Max = 25, Rounding = 0,
-    Callback = function(v) S.shootOpenRange = v end,
-})
+local S = {
+    accCat = "Hats",
+    accItem = "None",
+    accColor = "255,255,255",
+}
 
-ShootTime:AddToggle("AutoTime", {
-    Text = "Auto Time",
-    Default = false,
-    Callback = function(v)
-        S.autoTime = v
-        if not v and S.shotArmed then doRelease("off") end
-    end,
-})
-ShootTime:AddToggle("ReleaseAtFull", {
-    Text = "Release At Full",
-    Default = false,
-    Callback = function(v) S.releaseAtFull = v end,
-})
-ShootTime:AddSlider("GreenTarget", {
-    Text = "Full Bar Target %",
-    Default = 99, Min = 80, Max = 100, Rounding = 0,
-    Callback = function(v) S.greenTarget = v end,
-})
-ShootTime:AddSlider("AutoTimeDelay", {
-    Text = "Release Delay",
-    Default = 0.300, Min = 0.10, Max = 1.20, Rounding = 3,
-    Callback = function(v) S.autoTimeDelay = v end,
-})
-ShootTime:AddSlider("AutoTimePingComp", {
-    Text = "Ping Compensation",
-    Default = 0.55, Min = 0, Max = 1, Rounding = 2,
-    Callback = function(v) S.autoTimePingComp = v end,
-})
-ShootTime:AddSlider("AutoTimeMin", {
-    Text = "Min Delay",
-    Default = 0.12, Min = 0.05, Max = 0.50, Rounding = 3,
-    Callback = function(v) S.autoTimeMin = v end,
-})
-ShootTime:AddSlider("AutoTimeMax", {
-    Text = "Max Delay",
-    Default = 1.20, Min = 0.40, Max = 1.60, Rounding = 3,
-    Callback = function(v) S.autoTimeMax = v end,
-})
-ShootTime:AddToggle("AutoMovingShot", {
-    Text = "Moving Shot Adjust",
-    Default = false,
-    Callback = function(v) S.autoMovingShot = v end,
-})
-ShootTime:AddSlider("MovingShotDelayBonus", {
-    Text = "Moving Bonus",
-    Default = 0.08, Min = 0, Max = 0.20, Rounding = 3,
-    Callback = function(v) S.movingShotDelayBonus = v end,
-})
-ShootTime:AddToggle("AutoTimeNotify", {
-    Text = "Notify On Release",
-    Default = false,
-    Callback = function(v) S.autoTimeNotify = v end,
-})
-ShootTime:AddButton("Show Release Time", function()
-    notify("Auto Time", string.format("%.3fs  ping %dms", releaseDelay(), math.floor(pingSeconds() * 1000)))
-end)
+local function accCatalog()
+    local catalog = {}
+    for _, cat in ipairs(ACC_CATS) do
+        catalog[cat] = {}
+    end
 
-local meterList = MeterKit.types()
-local meterDrop = ShootRight:AddDropdown("MeterPick", {
-    Text = "Meter",
-    Values = meterList,
-    Default = meterList[1],
-    Callback = function(v) S.meterPick = v end,
-})
-ShootRight:AddButton("Apply Meter", function()
-    local ok, why = MeterKit.apply(S.meterPick or "")
-    notify("Shot Meter", ok and tostring(why) or ("failed: " .. tostring(why)))
-end)
-ShootRight:AddButton("Rescan Meters", function()
-    local list = MeterKit.types()
-    if meterDrop and meterDrop.SetValues then meterDrop:SetValues(list) end
-    notify("Shot Meter", "found " .. #list)
-end)
+    local AeroShared = RS:FindFirstChild("Aero") and RS.Aero:FindFirstChild("Shared")
+    local AccessoriesCfg = AeroShared and AeroShared:FindFirstChild("Config") and AeroShared.Config:FindFirstChild("Accessories")
 
---========================================================--
---  DRIBBLE TAB
---========================================================--
-local DribLeft = Tabs.Dribble:AddLeftGroupbox("Ball Control")
-local DribRight = Tabs.Dribble:AddRightGroupbox("Macros")
-local DribAnkle = Tabs.Dribble:AddLeftGroupbox("Ankle Breaker")
+    if AccessoriesCfg then
+        local ok, cfg = pcall(require, AccessoriesCfg)
+        if ok and type(cfg) == "table" then
+            for cat, items in pairs(cfg) do
+                if type(items) == "table" then
+                    catalog[cat] = catalog[cat] or {}
+                    for name, _ in pairs(items) do
+                        table.insert(catalog[cat], tostring(name))
+                    end
+                    table.sort(catalog[cat])
+                end
+            end
+        end
+    end
 
-DribLeft:AddToggle("SpeedWithBall", {
-    Text = "Speed With Ball",
-    Default = false,
-    Callback = function(v) S.speedWithBall = v end,
-})
-DribLeft:AddSlider("SwbSpeed", {
-    Text = "Ball Speed",
-    Default = 34, Min = 16, Max = 80, Rounding = 0,
-    Callback = function(v) S.swbSpeed = v end,
-})
-DribLeft:AddToggle("InfiniteStamina", {
-    Text = "Infinite Stamina",
-    Default = false,
-    Callback = function(v) S.infiniteStamina = v end,
-})
-
-DribAnkle:AddToggle("AnkleBreaker", {
-    Text = "Auto Ankle Breaker",
-    Default = false,
-    Callback = function(v) S.ankleBreaker = v end,
-})
-DribAnkle:AddDropdown("AnkleBreakerMove", {
-    Text = "Ankle Move",
-    Values = DribbleNames,
-    Default = "SnatchBack",
-    Callback = function(v) S.anklebreakerMove = v end,
-})
-
-for i = 1, #DribbleMacros do
-    local slot = DribbleMacros[i]
-    DribRight:AddDropdown("DribbleMacro" .. i, {
-        Text = "Macro " .. i .. " Move",
-        Values = DribbleNames,
-        Default = slot.Move,
-        Callback = function(v) slot.Move = v end,
-    })
-    DribRight:AddKeyPicker("DribbleMacroKey" .. i, {
-        Default = "None",
-        Mode = "Hold",
-        Text = "Macro " .. i,
-        Callback = function(held)
-            if held then playDribble(slot.Move) end
-        end,
-    })
+    for cat, list in pairs(catalog) do
+        if #list == 0 then
+            list[1] = "None"
+        end
+    end
+    return catalog
 end
 
---========================================================--
---  OFFENSE TAB
---========================================================--
-local OffLeft = Tabs.Offense:AddLeftGroupbox("Offense Tools")
-local OffRight = Tabs.Offense:AddRightGroupbox("Blow By / Clutch")
+local function parseColor(str)
+    if not str or str == "" then return Color3.new(1, 1, 1) end
+    str = tostring(str):gsub("%s+", "")
 
-OffLeft:AddToggle("OffenseGuard", {
-    Text = "Offense Guard",
-    Default = false,
-    Callback = function(v) S.offenseGuard = v; if not v then stopMoving() end end,
-})
-
-OffRight:AddToggle("AutoClutch", {
-    Text = "Auto Clutch",
-    Default = false,
-    Callback = function(v) S.autoClutch = v end,
-})
-OffRight:AddToggle("AutoBlowBy", {
-    Text = "Auto Blow By",
-    Default = false,
-    Callback = function(v) S.autoBlowBy = v end,
-})
-OffRight:AddButton("Blow By Now", function()
-    local root = myRoot()
-    if root then
-        local dir = root.CFrame.LookVector
-        send(InputS, "Sprint", { Sprinting = true })
-        send(InputS, "MoveDirection", { X = dir.X, Y = 0, Z = dir.Z })
-        playDribble("Crossover")
-        notify("Blow By", "fired")
+    local hex = str:match("^#?(%x%x%x%x%x%x)$")
+    if hex then
+        local r = tonumber(hex:sub(1, 2), 16) / 255
+        local g = tonumber(hex:sub(3, 4), 16) / 255
+        local b = tonumber(hex:sub(5, 6), 16) / 255
+        return Color3.new(r, g, b)
     end
-end)
 
---========================================================--
---  DEFENSE TAB
---========================================================--
-local DefLeft = Tabs.Defense:AddLeftGroupbox("Guard")
-local DefRight = Tabs.Defense:AddRightGroupbox("Contest / Steal")
+    local r, g, b = str:match("^(%d+),(%d+),(%d+)$")
+    if r and g and b then
+        return Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
+    end
 
-DefLeft:AddToggle("AutoGuard", {
-    Text = "Auto Guard",
-    Default = false,
-    Callback = function(v)
-        S.autoGuard = v
-        if not v then setGuard(false); stopMoving() end
-    end,
-}):AddKeyPicker("AutoGuardKey", {
-    Default = "None",
-    Mode = "Toggle",
-    Text = "Guard Key",
-    SyncToggleState = true,
-})
-DefLeft:AddToggle("GuardFlip", {
-    Text = "Guard Flip (swap side)",
-    Default = false,
-    Callback = function(v) S.guardFlip = v end,
-})
-DefLeft:AddToggle("GuardNative", {
-    Text = "Press Real G Key",
-    Default = true,
-    Callback = function(v)
-        S.guardNative = v
-        if not v and S.guardPressed then nativeGuard(false); S.guardPressed = false end
-    end,
-})
-DefLeft:AddSlider("GuardStandoff", {
-    Text = "Guard Distance",
-    Default = 2.0, Min = 0.5, Max = 12, Rounding = 1,
-    Callback = function(v) S.guardStandoff = v end,
-})
-DefLeft:AddSlider("GuardLead", {
-    Text = "Guard Lead (s)",
-    Default = 0.18, Min = 0, Max = 0.4, Rounding = 2,
-    Callback = function(v) S.guardLead = v end,
-})
-DefLeft:AddSlider("GuardRange", {
-    Text = "Guard Range",
-    Default = 14, Min = 4, Max = 40, Rounding = 0,
-    Callback = function(v) S.guardRange = v end,
-})
-DefLeft:AddButton("Press G Now", function()
-    local ok = nativeGuard(true)
-    send(InputS, "HoldG", { HoldingG = true })
-    notify("Guard", ok and "native G down" or "native G blocked (focus game)")
-end)
-DefLeft:AddButton("Release G", function()
-    nativeGuard(false)
-    send(InputS, "HoldG", { HoldingG = false })
-    notify("Guard", "G released")
-end)
+    return Color3.new(1, 1, 1)
+end
 
-DefRight:AddToggle("AutoSteal", {
-    Text = "Auto Steal",
-    Default = false,
-    Callback = function(v) S.autoSteal = v end,
-})
-DefRight:AddToggle("AutoContest", {
-    Text = "Auto Contest",
-    Default = false,
-    Callback = function(v) S.autoContest = v end,
-})
-DefRight:AddButton("Steal Now", function() send(InputS, "Steal") end)
-DefRight:AddButton("Jump Now", function() send(InputS, "Jump") end)
-DefRight:AddButton("Show Contest Action", function()
-    notify("Contest", "action: " .. tostring(S.contestAction))
-end)
+local function clearCosmetic(category)
+    local char = getChar()
+    if not char then return false, "character not found" end
 
---========================================================--
---  MOVEMENT TAB
---========================================================--
-local MovLeft = Tabs.Movement:AddLeftGroupbox("Speed")
-local MovRight = Tabs.Movement:AddRightGroupbox("Character")
+    local ok = pcall(function()
+        for _, child in ipairs(char:GetChildren()) do
+            if child:IsA("Accessory") or child:IsA("Shirt") or child:IsA("Pants") then
+                if tostring(child.Name):lower():find(category:lower()) or child:GetAttribute("Category") == category then
+                    child:Destroy()
+                end
+            end
+        end
+    end)
+    return ok
+end
 
-MovLeft:AddToggle("CfSpeed", {
-    Text = "CFrame Speed",
-    Default = false,
-    Callback = function(v) S.cfSpeed = v end,
-})
-MovLeft:AddSlider("CfSpeedValue", {
-    Text = "Speed",
-    Default = 40, Min = 16, Max = 150, Rounding = 0,
-    Callback = function(v) S.cfSpeedValue = v end,
-})
-MovLeft:AddToggle("AutoSprint", {
-    Text = "Auto Sprint",
-    Default = false,
-    Callback = function(v) S.autoSprint = v; if not v then S.sprintOn = false end end,
-})
-MovLeft:AddToggle("WalkBoost", {
-    Text = "Walk Speed Boost",
-    Default = false,
-    Callback = function(v) S.walkBoost = v end,
-})
-MovLeft:AddSlider("WalkBoostMult", {
-    Text = "Speed Multiplier",
-    Default = 1.6, Min = 1.1, Max = 3.0, Rounding = 1,
-    Callback = function(v) S.walkBoostMult = v end,
-})
-MovLeft:AddSlider("WalkBoostCap", {
-    Text = "Max Extra Studs/s",
-    Default = 45, Min = 10, Max = 120, Rounding = 0,
-    Callback = function(v) S.walkBoostCap = v end,
-})
+local function wearCosmetic(category, itemName, color)
+    if not category or not itemName or itemName == "None" then
+        return false, "invalid category or item"
+    end
 
-MovRight:AddToggle("HipHeight", {
-    Text = "Hip Height",
-    Default = false,
-    Callback = function(v) S.hipHeight = v; S.hipBaseY = nil end,
-})
-MovRight:AddSlider("HipValue", {
-    Text = "Hip Value",
-    Default = 2, Min = -2, Max = 8, Rounding = 1,
-    Callback = function(v) S.hipValue = v end,
-})
-MovRight:AddDivider()
-MovRight:AddToggle("BallMag", {
-    Text = "Ball Magnet",
-    Default = false,
-    Callback = function(v) S.ballMag = v end,
-})
-MovRight:AddSlider("BallMagRange", {
-    Text = "Magnet Range",
-    Default = 9, Min = 3, Max = 25, Rounding = 0,
-    Callback = function(v) S.ballMagRange = v end,
-})
-MovRight:AddToggle("BallMagAnyDist", {
-    Text = "Magnet Across Map",
-    Default = true,
-    Callback = function(v) S.ballMagAnyDist = v end,
-})
-MovRight:AddToggle("BallMagPull", {
-    Text = "Pull Ball To Hand",
-    Default = false,
-    Callback = function(v) S.ballMagPull = v end,
-})
+    local char = getChar()
+    if not char then return false, "character not found" end
 
---========================================================--
---  COSMETICS TAB
---========================================================--
-local CosLeft = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
-local CosRight = Tabs.Cosmetics:AddRightGroupbox("Apply")
+    clearCosmetic(category)
+
+    local ok, err = pcall(function()
+        -- Try game systems first
+        local Aero = RS:FindFirstChild("Aero")
+        local InvS = Aero and Aero:FindFirstChild("AeroRemoteServices") and Aero.AeroRemoteServices:FindFirstChild("InventoryService")
+
+        if InvS and InvS.Wear then
+            InvS:Wear(category, itemName, color)
+            return
+        end
+
+        -- Fallback: clone from Assets
+        local assets = RS:FindFirstChild("Assets")
+        local folder = assets and assets:FindFirstChild(category)
+        local model = folder and folder:FindFirstChild(itemName)
+
+        if model then
+            local clone = model:Clone()
+            if color then
+                for _, part in ipairs(clone:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Color = color
+                    end
+                end
+            end
+            clone.Parent = char
+        else
+            error("item not found in assets")
+        end
+    end)
+
+    return ok, err
+end
+
+-- Cosmetics UI
+local CSL = Tabs.Cosmetics:AddLeftGroupbox("Catalog")
+local CSR = Tabs.Cosmetics:AddRightGroupbox("Apply")
 
 local catalog = accCatalog()
 local accItemDropdown
 
-CosLeft:AddDropdown("AccFolder", {
+CSL:AddDropdown("AccFolder", {
     Text = "Category",
     Values = ACC_CATS,
     Default = "Hats",
@@ -2508,416 +262,75 @@ CosLeft:AddDropdown("AccFolder", {
         if #list == 0 then list = { "None" } end
         if accItemDropdown and accItemDropdown.SetValues then
             accItemDropdown:SetValues(list)
-            if accItemDropdown.SetValue then accItemDropdown:SetValue(list[1]) end
+            if accItemDropdown.SetValue then
+                accItemDropdown:SetValue(list[1], true)
+            end
         end
         S.accItem = list[1] or "None"
-    end,
+    end
 })
 
 local firstList = catalog["Hats"]
 if not firstList or #firstList == 0 then firstList = { "None" } end
-accItemDropdown = CosLeft:AddDropdown("AccItem", {
+
+accItemDropdown = CSL:AddDropdown("AccItem", {
     Text = "Item",
     Values = firstList,
     Default = firstList[1],
-    Callback = function(v) S.accItem = v end,
+    Callback = function(v)
+        S.accItem = v
+    end
 })
 S.accItem = firstList[1]
 
-CosLeft:AddInput("AccColor", {
+CSL:AddTextbox("AccColor", {
     Text = "Color (r,g,b or hex)",
     Default = "255,255,255",
     Placeholder = "255,255,255",
-    Callback = function(v) S.accColor = v end,
+    Callback = function(v)
+        S.accColor = v
+    end
 })
 
-CosRight:AddButton("Wear", function()
+CSR:AddButton("Wear", function()
     local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
-    notify("Cosmetic", ok and (tostring(S.accCat) .. ": " .. tostring(S.accItem)) or ("failed: " .. tostring(err)))
+    Library:Notify({
+        Title = "Cosmetic",
+        Description = ok and (tostring(S.accCat) .. ": " .. tostring(S.accItem)) or ("failed: " .. tostring(err)),
+        Time = 3
+    })
 end)
-CosRight:AddButton("Clear Category", function()
+
+CSR:AddButton("Clear Category", function()
     local ok, err = clearCosmetic(S.accCat)
-    notify("Cosmetic", ok and ("cleared " .. tostring(S.accCat)) or ("failed: " .. tostring(err)))
+    Library:Notify({
+        Title = "Cosmetic",
+        Description = ok and ("cleared " .. tostring(S.accCat)) or ("failed: " .. tostring(err)),
+        Time = 3
+    })
 end)
-CosRight:AddButton("Refresh Catalog", function()
+
+CSR:AddButton("Refresh Catalog", function()
     catalog = accCatalog()
     local list = catalog[S.accCat] or { "None" }
     if #list == 0 then list = { "None" } end
     if accItemDropdown and accItemDropdown.SetValues then
         accItemDropdown:SetValues(list)
+        if accItemDropdown.SetValue then
+            accItemDropdown:SetValue(list[1], true)
+        end
     end
     S.accItem = list[1] or "None"
-    notify("Cosmetic", "catalog refreshed")
-end)
-CosRight:AddLabel("Client-side where possible.")
-CosRight:AddLabel("Server equip if remote exists.")
-
---========================================================--
---  GREEN FX TAB
---========================================================--
-local GfxLeft = Tabs.GreenFX:AddLeftGroupbox("Effect")
-local GfxRight = Tabs.GreenFX:AddRightGroupbox("Celebration / Goal")
-
-local gfxList = greenFxList()
-GfxLeft:AddDropdown("GreenFx", {
-    Text = "Green Effect",
-    Values = gfxList,
-    Default = gfxList[1] or "Basic",
-    Callback = function(v) S.greenFx = v end,
-})
-GfxLeft:AddButton("Equip", function()
-    local ok = applyGreenFx(S.greenFx)
-    notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " (client attempt)"))
-end)
-GfxLeft:AddButton("Test Locally", function()
-    local ok = playGreenFx(S.greenFx)
-    notify("Green FX", ok and ("played " .. tostring(S.greenFx)) or "failed")
-end)
-GfxLeft:AddToggle("GreenFxAuto", {
-    Text = "Play On Green Release",
-    Default = true,
-    Callback = function(v) S.greenFxAuto = v end,
-})
-
-local celebValues = celebList()
-GfxRight:AddDropdown("CelebPick", {
-    Text = "Celebration",
-    Values = celebValues,
-    Default = celebValues[1] or "None",
-    Callback = function(v) S.celebPick = v end,
-})
-GfxRight:AddToggle("GreenCeleb", {
-    Text = "Celebrate On Green",
-    Default = false,
-    Callback = function(v) S.greenCeleb = v end,
-})
-GfxRight:AddButton("Play Celebration", function() playCelebration(S.celebPick) end)
-GfxRight:AddDivider()
-GfxRight:AddDropdown("GoalFxPick", {
-    Text = "Goal FX",
-    Values = gfxList,
-    Default = gfxList[1] or "Basic",
-    Callback = function(v)
-        S.goalFx = v
-        if S.goalFxOverride then pcall(applyGreenFx, v) end
-    end,
-})
-GfxRight:AddToggle("GoalFxOverride", {
-    Text = "Override (no stacking)",
-    Default = false,
-    Callback = function(v)
-        S.goalFxOverride = v
-        if v and S.goalFx then
-            S.greenFx = S.goalFx
-            pcall(applyGreenFx, S.goalFx)
-        end
-    end,
-})
-
---========================================================--
---  REC TAB
---========================================================--
-local RecLeft = Tabs.REC:AddLeftGroupbox("Auto Farm")
-local RecRight = Tabs.REC:AddRightGroupbox("Server / Queue")
-local RecSmart = Tabs.REC:AddLeftGroupbox("Smart Farm")
-local RecHook = Tabs.REC:AddRightGroupbox("Webhook")
-
-RecLeft:AddToggle("RecFarm", {
-    Text = "REC Auto Farm",
-    Default = false,
-    Callback = function(v)
-        if not v then
-            S.recFarm = false
-            S.recState = "idle"
-            stopMoving()
-            notify("REC", "farm OFF")
-            return
-        end
-        if game.PlaceId ~= S.recPlaceId and game.PlaceId ~= S.recQueuePlaceId then
-            S.recPhase = 1
-            S.recFarm = false
-            joinRecQueue()
-            notify("REC", "teleporting to REC queue - press again once in")
-        else
-            S.recPhase = 2
-            S.recFarm = true
-            S.recState = "starting"
-            task.delay(0.5, autoReady)
-            notify("REC", "auto ready sent - farm ON")
-        end
-    end,
-})
-RecLeft:AddToggle("RecCdBypass", {
-    Text = "Cooldown Bypass",
-    Default = false,
-    Callback = function(v)
-        S.recCdOn = v
-        S.recCdNext = 0
-        if v then S.recCdCount = 0; notify("REC", "cooldown bypass ON")
-        else notify("REC", "cooldown bypass OFF") end
-    end,
-})
-RecLeft:AddSlider("RecCdInterval", {
-    Text = "Bypass Interval",
-    Default = 0.4, Min = 0.1, Max = 3, Rounding = 1,
-    Callback = function(v) S.recCdInterval = v end,
-})
-RecLeft:AddButton("Bypass Ready Once", function()
-    if recFireReady() then
-        notify("REC", "ready via " .. tostring(S.recReadyLabel) .. " (x" .. tostring(S.recCdCount) .. ")")
-    else
-        notify("REC", "no ready remote")
-    end
-end)
-RecLeft:AddButton("Show Lockout", function()
-    local lock = recLockSeconds()
-    notify("REC", lock > 0 and string.format("locked %ds", math.ceil(lock)) or "no lockout")
-end)
-RecLeft:AddSlider("RecShotRange", {
-    Text = "Shot Max Range",
-    Default = 55, Min = 8, Max = 90, Rounding = 0,
-    Callback = function(v) S.recShootMaxRange = v end,
-})
-RecLeft:AddToggle("RecRebound", {
-    Text = "Chase Rebounds",
-    Default = true,
-    Callback = function(v) S.recRebound = v end,
-})
-RecLeft:AddToggle("RecFarmSprint", {
-    Text = "Auto Sprint (farm)",
-    Default = true,
-    Callback = function(v) S.recFarmSprint = v end,
-})
-RecLeft:AddToggle("RecAutoInboundOn", {
-    Text = "Auto Inbound",
-    Default = false,
-    Callback = function(v)
-        S.recAutoInboundOn = v
-        S.recAutoInbound = v and (S.recInboundMode or "Auto-pass") or "Off"
-    end,
-})
-RecLeft:AddDropdown("RecInboundMode", {
-    Text = "Inbound Mode",
-    Values = { "Auto-pass", "Hold spot", "Pass to open man" },
-    Default = "Auto-pass",
-    Callback = function(v)
-        S.recInboundMode = v
-        if S.recAutoInboundOn then S.recAutoInbound = v end
-    end,
-})
-RecLeft:AddToggle("RecAutoQueue", {
-    Text = "Back To Queue After Game",
-    Default = true,
-    Callback = function(v) S.recAutoQueue = v end,
-})
-RecLeft:AddSlider("RecAutoQueueDelay", {
-    Text = "Queue Delay",
-    Default = 4, Min = 1, Max = 20, Rounding = 0,
-    Callback = function(v) S.recAutoQueueDelay = v end,
-})
-RecLeft:AddToggle("RecDebug", {
-    Text = "Debug Notify",
-    Default = false,
-    Callback = function(v) S.recDebug = v end,
-})
-
-local recStatusLbl = RecLeft:AddLabel("rec: idle")
-task.spawn(function()
-    while not S.cleaned do
-        task.wait(0.4)
-        pcall(function()
-            local lock = recLockSeconds()
-            recStatusLbl:SetText(string.format(
-                "state: %s | ready x%d | lock %ds",
-                tostring(S.recState), S.recCdCount or 0, math.ceil(lock)))
-        end)
-    end
+    Library:Notify({
+        Title = "Cosmetic",
+        Description = "catalog refreshed",
+        Time = 2
+    })
 end)
 
-RecRight:AddButton("Teleport to REC", function() joinRec() end)
-RecRight:AddButton("Teleport to REC Queue", function() joinRecQueue() end)
-RecRight:AddButton("Auto Ready", function() autoReady() end)
-RecRight:AddButton("Invite All to Rec", function() inviteAllToRec() end)
-RecRight:AddButton("Leave Queue", function()
-    task.spawn(function()
-        local r = rawRemote("InterfaceService", "LeaveRec")
-        if r then
-            pcall(function() r:InvokeServer() end)
-            notify("REC", "left the queue")
-        else
-            notify("REC", "LeaveRec remote missing")
-        end
-    end)
-end)
-RecRight:AddButton("Show State", function()
-    notify("REC", "state: " .. tostring(S.recState))
-end)
-RecRight:AddButton("Test Pass", function()
-    if recTryPass("manual", 1) then
-        notify("REC", "pass -> " .. tostring(S.recPassTarget))
-    else
-        notify("REC", "pass not fired")
-    end
-end)
-
--- Smart Farm
-RecSmart:AddToggle("SmartFarm", {
-    Text = "Smart Farm",
-    Default = false,
-    Callback = function(v)
-        S.smartFarm = v
-        S.smartState = "IDLE"
-        S.smartDefTarget = nil
-        S.smartOffSpot = nil
-        S.smartRotIdx3 = 1
-        S.smartRotIdx2 = 1
-        if not v then stopMoving() end
-        notify("SmartFarm", v and "ON" or "OFF")
-    end,
-})
-RecSmart:AddDropdown("SmartSpotMode", {
-    Text = "Shot Type",
-    Values = { "3PT", "2PT", "Any" },
-    Default = "3PT",
-    Callback = function(v) S.smartSpotMode = v end,
-})
-RecSmart:AddDropdown("SmartSpot3", {
-    Text = "3PT Spot",
-    Values = { "Rotate", "Top Key", "Right Wing", "Left Wing", "Right Corner", "Left Corner" },
-    Default = "Rotate",
-    Callback = function(v) S.smartSpot3 = v; S.smartRotIdx3 = 1 end,
-})
-RecSmart:AddDropdown("SmartSpot2", {
-    Text = "2PT Spot",
-    Values = { "Rotate", "Right Elbow", "Right Key", "Left Key" },
-    Default = "Rotate",
-    Callback = function(v) S.smartSpot2 = v; S.smartRotIdx2 = 1 end,
-})
-RecSmart:AddToggle("SmartDebug", {
-    Text = "Smart Debug",
-    Default = false,
-    Callback = function(v) S.smartDebug = v end,
-})
-RecSmart:AddButton("Show Smart State", function()
-    local entry = resolveSpot()
-    notify("SmartFarm", "state: " .. tostring(S.smartState) .. " | spot: " .. (entry and entry.name or "?"))
-end)
-RecSmart:AddButton("Reset Smart", function()
-    S.smartState = "IDLE"
-    S.smartDefTarget = nil
-    S.smartOffSpot = nil
-    stopMoving()
-    notify("SmartFarm", "reset -> IDLE")
-end)
-
--- Webhook
-RecHook:AddToggle("WebhookOn", {
-    Text = "Enable Webhook",
-    Default = S.webhookOn and true or false,
-    Callback = function(v)
-        S.webhookOn = v
-        saveWebhookFile()
-        if v and tostring(S.webhookURL or "") == "" then
-            notify("Webhook", "paste your discord webhook URL")
-        end
-    end,
-})
-RecHook:AddInput("WebhookURL", {
-    Text = "Webhook URL",
-    Default = tostring(S.webhookURL or ""),
-    Placeholder = "https://discord.com/api/webhooks/...",
-    Callback = function(v)
-        S.webhookURL = tostring(v or ""):gsub("%s", "")
-        saveWebhookFile()
-    end,
-})
-RecHook:AddToggle("WebhookOnEnd", {
-    Text = "Send On Game End",
-    Default = true,
-    Callback = function(v) S.webhookOnEnd = v end,
-})
-RecHook:AddToggle("WebhookQuarters", {
-    Text = "Send Every Quarter",
-    Default = true,
-    Callback = function(v) S.webhookQuarters = v end,
-})
-RecHook:AddButton("Test Webhook", function()
-    sendWebhookTest()
-    notify("Webhook", tostring(S.webhookStatus))
-end)
-RecHook:AddButton("Send Stats Now", function()
-    sendMatchWebhook("manual")
-    notify("Webhook", tostring(S.webhookStatus))
-end)
-RecHook:AddButton("Reset Stats", function()
-    recResetStats()
-    notify("Webhook", "stat counters reset")
-end)
-
-local webhookLbl = RecHook:AddLabel("webhook: idle")
-task.spawn(function()
-    while not S.cleaned do
-        task.wait(0.5)
-        pcall(function()
-            recStatsRead()
-            webhookLbl:SetText(string.format(
-                "%s | %d/%d/%d | Q%d | %s",
-                tostring(S.webhookStatus), S.livePts or 0, S.liveReb or 0,
-                S.liveAst or 0, S.quarterSeen or 0, tostring(S.liveGrade)))
-        end)
-    end
-end)
-
---========================================================--
---  SPOOFERS TAB
---========================================================--
-local SpfLeft = Tabs.Spoofers:AddLeftGroupbox("Profile")
-local SpfRight = Tabs.Spoofers:AddRightGroupbox("Identity")
-
-SpfLeft:AddToggle("SpoofCoins", {
-    Text = "Coin Spoofer",
-    Default = false,
-    Callback = function(v) S.spoofCoins = v; applySpoofs() end,
-})
-SpfLeft:AddSlider("CoinsValue", {
-    Text = "Coins",
-    Default = 999999, Min = 0, Max = 100000000, Rounding = 0,
-    Callback = function(v) S.coinsValue = v end,
-})
-SpfLeft:AddToggle("SpoofRank", {
-    Text = "Rank Spoofer",
-    Default = false,
-    Callback = function(v) S.spoofRank = v; applySpoofs() end,
-})
-SpfLeft:AddDropdown("RankValue", {
-    Text = "Rank",
-    Values = { "Starter", "Rookie", "Pro", "AllStar", "Superstar", "Legend", "GOAT" },
-    Default = "Legend",
-    Callback = function(v) S.rankValue = v end,
-})
-SpfLeft:AddToggle("SpoofOverall", {
-    Text = "Overall Spoofer",
-    Default = false,
-    Callback = function(v) S.spoofOverall = v; applySpoofs() end,
-})
-SpfLeft:AddSlider("OverallValue", {
-    Text = "Overall",
-    Default = 99, Min = 60, Max = 99, Rounding = 0,
-    Callback = function(v) S.overallValue = v end,
-})
-
-SpfRight:AddToggle("SpoofName", {
-    Text = "Name Spoofer",
-    Default = false,
-    Callback = function(v) S.spoofName = v; applySpoofs() end,
-})
-SpfRight:AddInput("NameValue", {
-    Text = "Name",
-    Default = "Practical",
-    Placeholder = "display name",
-    Callback = function(v) S.nameValue = v end,
-})
-SpfRight:AddLabel("Client-side display only.")
+CSR:AddLabel("Client-side only. Anything the game")
+CSR:AddLabel("ships can be worn without owning it --")
+CSR:AddLabel("it shows for you and nobody else.")
 
 --========================================================--
 --  UI SETTINGS
@@ -2925,22 +338,8 @@ SpfRight:AddLabel("Client-side display only.")
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 
 MenuGroup:AddButton("Unload", function()
-    S.cleaned = true
-    pcall(function() RunService:UnbindFromRenderStep("VH_Practical") end)
-    for _, c in ipairs(S.conns) do pcall(function() c:Disconnect() end) end
-    stopMoving()
-    setGuard(false)
-    pcall(function() if keyrelease then keyrelease(VK_G) end end)
-    send(InputS, "Sprint", false)
-    send(InputS, "HoldG", { HoldingG = false })
-    if Controls and origGetMoveVector then
-        pcall(function() rawset(Controls, "GetMoveVector", origGetMoveVector) end)
-    end
     Library:Unload()
 end)
-
-MenuGroup:AddLabel("Vision Hub - Practical")
-MenuGroup:AddLabel("Ported from Angel Hub build")
 
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
@@ -2950,9 +349,3 @@ ThemeManager:SetFolder("VisionHub")
 SaveManager:SetFolder("VisionHub/configs")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
-
--- expose for debugging
-gg.VH_Practical = S
-gg.playGreenFx = playGreenFx
-
-notify("Vision Hub", "Practical loaded")
