@@ -1,6 +1,5 @@
 -- Practical Basketball - Obsidian GUI (Full Logic)
--- Features: Dribble, Movement, Cosmetics, Green FX, Spoofers
--- Angel Hub UI removed. Uses deividcomsono/Obsidian.
+-- Tabs created one at a time, features added immediately after each tab
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -16,15 +15,6 @@ local Window = Library:CreateWindow({
     NotifySide = "Right",
     ShowCustomCursor = false,
 })
-
-local Tabs = {
-    Dribble = Window:AddTab("Dribble", "dribbble"),
-    Movement = Window:AddTab("Movement", "move"),
-    Cosmetics = Window:AddTab("Cosmetics", "shirt"),
-    ["Green FX"] = Window:AddTab("Green FX", "sparkles"),
-    Spoofers = Window:AddTab("Spoofers", "user"),
-    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
-}
 
 -- ============================================================================
 -- SERVICES
@@ -207,7 +197,6 @@ local function myGoal()
     local pkt = myPkt()
     if not pkt then return nil end
     local isHome = pktAttr(pkt, "HomeTeam")
-    -- Simplified: return a reasonable goal position
     return isHome and Vector3.new(-48.7, 12.5, -23.2) or Vector3.new(64.5, 9.9, -23.2)
 end
 
@@ -635,10 +624,11 @@ local function applySpoofs()
 end
 
 -- ============================================================================
--- UI - DRIBBLE
+-- DRIBBLE TAB
 -- ============================================================================
 
-local DribbleLeft = Tabs.Dribble:AddGroupbox({ Side = "Left", Name = "Ball Control" })
+local DribbleTab = Window:AddTab("Dribble", "user")
+local DribbleLeft = DribbleTab:AddGroupbox({ Side = "Left", Name = "Ball Control" })
 
 DribbleLeft:AddToggle("DribbleGlide", {
     Text = "Dribble Glide",
@@ -717,11 +707,12 @@ for i = 1, #DribbleMacros do
 end
 
 -- ============================================================================
--- UI - MOVEMENT
+-- MOVEMENT TAB
 -- ============================================================================
 
-local MoveLeft = Tabs.Movement:AddGroupbox({ Side = "Left", Name = "Movement" })
-local MoveRight = Tabs.Movement:AddGroupbox({ Side = "Right", Name = "Character" })
+local MovementTab = Window:AddTab("Movement", "move")
+local MoveLeft = MovementTab:AddGroupbox({ Side = "Left", Name = "Movement" })
+local MoveRight = MovementTab:AddGroupbox({ Side = "Right", Name = "Character" })
 
 MoveLeft:AddToggle("CfSpeed", {
     Text = "CFrame Speed",
@@ -784,11 +775,12 @@ MoveRight:AddSlider("HipValue", {
 })
 
 -- ============================================================================
--- UI - COSMETICS
+-- COSMETICS TAB
 -- ============================================================================
 
-local CosLeft = Tabs.Cosmetics:AddGroupbox({ Side = "Left", Name = "Catalog" })
-local CosRight = Tabs.Cosmetics:AddGroupbox({ Side = "Right", Name = "Apply" })
+local CosmeticsTab = Window:AddTab("Cosmetics", "shirt")
+local CosLeft = CosmeticsTab:AddGroupbox({ Side = "Left", Name = "Catalog" })
+local CosRight = CosmeticsTab:AddGroupbox({ Side = "Right", Name = "Apply" })
 
 local catalog = accCatalog()
 
@@ -798,9 +790,6 @@ CosLeft:AddDropdown("AccFolder", {
     Default = "Hats",
     Callback = function(v)
         S.accCat = v
-        local list = catalog[v] or { "None" }
-        if #list == 0 then list = { "None" } end
-        -- Dynamic update of AccItem would require storing the dropdown reference
     end,
 })
 
@@ -845,11 +834,12 @@ CosRight:AddButton({
 CosRight:AddLabel("Client-side only. Shows for you, not others.")
 
 -- ============================================================================
--- UI - GREEN FX
+-- GREEN FX TAB
 -- ============================================================================
 
-local GfxLeft = Tabs["Green FX"]:AddGroupbox({ Side = "Left", Name = "Effect" })
-local GfxRight = Tabs["Green FX"]:AddGroupbox({ Side = "Right", Name = "Celebration" })
+local GreenFxTab = Window:AddTab("Green FX", "sparkles")
+local GfxLeft = GreenFxTab:AddGroupbox({ Side = "Left", Name = "Effect" })
+local GfxRight = GreenFxTab:AddGroupbox({ Side = "Right", Name = "Celebration" })
 
 local fxList = greenFxList()
 local celebValues = celebList()
@@ -883,7 +873,7 @@ GfxLeft:AddToggle("GreenFxAuto", {
     Callback = function(v) S.greenFxAuto = v end,
 })
 
-GfxLeft:AddLabel("RunEffect is called directly, so the effect plays even when the server does not know you own it.")
+GfxLeft:AddLabel("RunEffect is called directly so the effect plays even if the server thinks you don't own it.")
 
 GfxRight:AddDropdown("CelebPick", {
     Text = "Celebration",
@@ -927,11 +917,12 @@ GfxRight:AddToggle("GoalFxOverride", {
 })
 
 -- ============================================================================
--- UI - SPOOFERS
+-- SPOOFERS TAB
 -- ============================================================================
 
-local SpoofLeft = Tabs.Spoofers:AddGroupbox({ Side = "Left", Name = "Profile" })
-local SpoofRight = Tabs.Spoofers:AddGroupbox({ Side = "Right", Name = "Identity" })
+local SpoofersTab = Window:AddTab("Spoofers", "user")
+local SpoofLeft = SpoofersTab:AddGroupbox({ Side = "Left", Name = "Profile" })
+local SpoofRight = SpoofersTab:AddGroupbox({ Side = "Right", Name = "Identity" })
 
 SpoofLeft:AddToggle("SpoofCoins", {
     Text = "Coin Spoofer",
@@ -1004,10 +995,11 @@ SpoofRight:AddTextbox("NameValue", {
 SpoofRight:AddLabel("Client-side display only.")
 
 -- ============================================================================
--- UI SETTINGS
+-- UI SETTINGS TAB
 -- ============================================================================
 
-local MenuGroup = Tabs["UI Settings"]:AddGroupbox({ Side = "Left", Name = "Menu" })
+local UISettingsTab = Window:AddTab("UI Settings", "settings")
+local MenuGroup = UISettingsTab:AddGroupbox({ Side = "Left", Name = "Menu" })
 
 MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
     Default = "RightShift",
@@ -1030,8 +1022,8 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 ThemeManager:SetFolder("PracticalBasketball")
 SaveManager:SetFolder("PracticalBasketball/configs")
-SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
+SaveManager:BuildConfigSection(UISettingsTab)
+ThemeManager:ApplyToTab(UISettingsTab)
 SaveManager:LoadAutoloadConfig()
 
 Library:OnUnload(function()
