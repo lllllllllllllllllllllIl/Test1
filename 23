@@ -1,6 +1,6 @@
--- Practical Basketball - Obsidian GUI
+-- Practical Basketball - Obsidian GUI (Full Logic)
 -- Features: Dribble, Movement, Cosmetics, Green FX, Spoofers
--- Angel Hub UI removed. Uses deividcomsono/Obsidian (Linoria fork).
+-- Angel Hub UI removed. Uses deividcomsono/Obsidian.
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -27,13 +27,14 @@ local Tabs = {
 }
 
 -- ============================================================================
--- CORE SERVICES & STATE (trimmed to what these features need)
+-- SERVICES
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local RS = game:GetService("ReplicatedStorage")
 local WS = workspace
+local CAS = game:GetService("ContextActionService")
 local me = Players.LocalPlayer
 
 local AeroFolder = RS:FindFirstChild("Aero")
@@ -55,14 +56,26 @@ local function req(parent, name)
 end
 
 local PlayerCtrl = req(Ctrl, "Player")
+local CharsCtrl = req(Ctrl, "Characters")
 local Services = PlayerCtrl and PlayerCtrl.Services
 local InputS = Services and Services.InputService
+local InvS = Services and Services.InventoryService
+
+local InputSvc = Svc:FindFirstChild("InputService")
+local InterSvc = Svc:FindFirstChild("InterfaceService")
+local RunGreenR = InterSvc and InterSvc:FindFirstChild("RunGreenEffect")
+local GreenCelebR = InterSvc and InterSvc:FindFirstChild("GreenCelebration")
+
+local AeroShared = AeroFolder and AeroFolder:FindFirstChild("Shared")
+local SharedCfg = AeroShared and AeroShared:FindFirstChild("Config")
+local GreenFxConfig = req(SharedCfg, "GreenEffects")
+local CelebsConfig = req(SharedCfg, "Celebrations")
+local GameCfg = req(SharedCfg and SharedCfg:FindFirstChild("Game"), "Celebrations")
+local AccessoriesCfg = req(SharedCfg, "Accessories")
 
 local function remote(parent, name)
     return parent and parent:FindFirstChild(name) or nil
 end
-
-local InputSvc = Svc:FindFirstChild("InputService")
 
 local function send(svc, name, ...)
     local args = table.pack(...)
@@ -78,15 +91,16 @@ local function send(svc, name, ...)
     return false
 end
 
--- Simple state table used by the features below
+-- ============================================================================
+-- STATE
+-- ============================================================================
+
 local S = {
-    -- Dribble
     speedWithBall = false,
     swbSpeed = 34,
     ankleBreaker = false,
     anklebreakerMove = "SnatchBack",
     infiniteStamina = false,
-    -- Movement
     cfSpeed = false,
     cfSpeedValue = 40,
     autoSprint = false,
@@ -95,18 +109,15 @@ local S = {
     walkBoostCap = 45,
     hipHeight = false,
     hipValue = 2,
-    -- Cosmetics
     accCat = "Hats",
     accItem = "None",
     accColor = "255,255,255",
-    -- Green FX
     greenFx = "Basic",
     greenFxAuto = true,
     celebPick = "",
     greenCeleb = false,
     goalFx = "",
     goalFxOverride = false,
-    -- Spoofers
     spoofCoins = false,
     coinsValue = 999999,
     spoofRank = false,
@@ -115,17 +126,155 @@ local S = {
     overallValue = 99,
     spoofName = false,
     nameValue = "Practical",
+    gfxMod = nil,
+    conns = {},
     cleaned = false,
 }
 
 local function notify(title, msg)
     pcall(function()
-        Library:Notify({ Title = title, Description = msg, Time = 2.5 })
+        Library:Notify({ Title = title, Description = tostring(msg), Time = 2.5 })
     end)
 end
 
+local function track(c)
+    if c then S.conns[#S.conns + 1] = c end
+    return c
+end
+
 -- ============================================================================
--- DRIBBLE LOGIC
+-- CHARACTER ACCESS
+-- ============================================================================
+
+local function pktRoot(pkt)
+    if not pkt then return nil end
+    local j = pkt.joints
+    if j and j.HumanoidRootPart then return j.HumanoidRootPart.object end
+    return pkt.HumanoidRootPart
+end
+
+local function pktAttr(pkt, name)
+    if not pkt or type(pkt.attributes) ~= "table" then return nil end
+    return pkt.attributes[name]
+end
+
+local function pktHasBall(pkt)
+    local b = pktAttr(pkt, "Basketball")
+    return b ~= nil and b ~= false
+end
+
+local function setAttr(pkt, name, value)
+    if not pkt then return end
+    if type(pkt.attributes) == "table" then pkt.attributes[name] = value end
+    local m = pkt.model
+    if m then pcall(function() m:SetAttribute(name, value) end) end
+end
+
+local function allPackets()
+    local out = {}
+    if not CharsCtrl or type(CharsCtrl.Characters) ~= "table" then return out end
+    for _, pkt in pairs(CharsCtrl.Characters) do
+        if type(pkt) == "table" then out[#out + 1] = pkt end
+    end
+    return out
+end
+
+local function myPkt()
+    if not CharsCtrl or type(CharsCtrl.Characters) ~= "table" then return nil end
+    return CharsCtrl.Characters[me.Name]
+end
+
+local function myRoot()
+    return pktRoot(myPkt())
+end
+
+local function looseBall(maxDist)
+    local root = myRoot()
+    if not root then return nil end
+    local bs = WS:FindFirstChild("Basketballs")
+    if not bs then return nil end
+    local best, bestD = nil, maxDist or math.huge
+    for _, b in ipairs(bs:GetDescendants()) do
+        if b:IsA("BasePart") and b.Name:lower():find("ball") then
+            local d = (b.Position - root.Position).Magnitude
+            if d < bestD then best, bestD = b, d end
+        end
+    end
+    return best
+end
+
+local function myGoal()
+    local pkt = myPkt()
+    if not pkt then return nil end
+    local isHome = pktAttr(pkt, "HomeTeam")
+    -- Simplified: return a reasonable goal position
+    return isHome and Vector3.new(-48.7, 12.5, -23.2) or Vector3.new(64.5, 9.9, -23.2)
+end
+
+-- ============================================================================
+-- MOVEMENT OVERRIDE
+-- ============================================================================
+
+local Controls, origGetMoveVector = nil, nil
+local moveOverride = nil
+
+do
+    local ok, pm = pcall(function() return require(PS:WaitForChild("PlayerModule", 5)) end)
+    if ok and pm then
+        local ok2, c = pcall(function() return pm:GetControls() end)
+        if ok2 and c then
+            local orig = rawget(c, "GetMoveVector")
+            if type(orig) ~= "function" then orig = c.GetMoveVector end
+            if type(orig) == "function" then
+                local patched = function(self, ...)
+                    if moveOverride then return moveOverride end
+                    return orig(self, ...)
+                end
+                pcall(function() rawset(c, "GetMoveVector", patched) end)
+                pcall(function() c.GetMoveVector = patched end)
+                local mt = getmetatable(c)
+                if type(mt) == "table" and type(mt.__index) == "table" then
+                    pcall(function() mt.__index.GetMoveVector = patched end)
+                end
+                if c.GetMoveVector == patched then
+                    Controls, origGetMoveVector = c, orig
+                end
+            end
+        end
+    end
+end
+
+local function setMoveInput(v) moveOverride = v end
+local function stopMoving() setMoveInput(nil) end
+
+local function worldToInput(dir)
+    local cam = WS.CurrentCamera
+    if not cam then return Vector3.new(0, 0, 0) end
+    local flat = Vector3.new(dir.X, 0, dir.Z)
+    if flat.Magnitude < 1e-4 then return Vector3.new(0, 0, 0) end
+    flat = flat.Unit
+    local cf = cam.CFrame
+    local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+    local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+    if look.Magnitude < 1e-3 and right.Magnitude < 1e-3 then return Vector3.new(0, 0, 0) end
+    local x = right.Magnitude > 1e-3 and flat:Dot(right.Unit) or 0
+    local z = look.Magnitude > 1e-3 and -flat:Dot(look.Unit) or 0
+    local m = math.sqrt(x * x + z * z)
+    if m > 1 then x, z = x / m, z / m end
+    return Vector3.new(x, 0, z)
+end
+
+local function moveTowards(pos, weight)
+    local root = myRoot()
+    if not root then setMoveInput(nil) return end
+    local d = pos - root.Position
+    d = Vector3.new(d.X, 0, d.Z)
+    if d.Magnitude < 0.5 then setMoveInput(nil) return end
+    setMoveInput(worldToInput(d) * (weight or 1))
+end
+
+-- ============================================================================
+-- DRIBBLE GLIDE
 -- ============================================================================
 
 local DribbleGlide = {
@@ -138,109 +287,355 @@ local function Flat(v) return Vector3.new(v.X, 0, v.Z) end
 
 local function GetProxy()
     local p = WS:FindFirstChild("ProxyCharacter")
-    if p and p:FindFirstChild("MovementVelocity") then
-        return p
-    end
+    if p and p:FindFirstChild("MovementVelocity") then return p end
 end
 
-RunService.Stepped:Connect(function(_, dt)
+track(RunService.Stepped:Connect(function(_, dt)
     if not DribbleGlide.Enabled then return end
     local proxy = GetProxy()
     if not proxy then return end
-    local char = WS:FindFirstChild("Characters") and WS.Characters:FindFirstChild(me.Name)
+    local chars = WS:FindFirstChild("Characters")
+    local char = chars and chars:FindFirstChild(me.Name)
     if not char or char:GetAttribute("Action") ~= "Dribbling" then return end
     local moving = Flat(proxy.AssemblyLinearVelocity)
     if moving.Magnitude > 1 then
         proxy.CFrame += moving.Unit * (DribbleGlide.GlideSpeed / 100 * 16) * dt
     end
-end)
+end))
 
--- Dribble table / macros (simplified; expand with full table if needed)
-local DribbleNames = { "Crossover", "Hesitation", "Tween", "DoubleCrossover", "BehindBack", "Spin", "SwitchHand", "SnatchBack" }
-local DribbleMacros = {
-    { Move = "Crossover", Key = "None" },
-    { Move = "Hesitation", Key = "None" },
-    { Move = "Tween", Key = "None" },
-    { Move = "BehindBack", Key = "None" },
-}
+-- ============================================================================
+-- DRIBBLE TABLE + MACROS
+-- ============================================================================
+
+local DribbleTable = {}
+local DribbleNames = {}
+
+do
+    local cfgInput = nil
+    pcall(function()
+        local shared = AeroFolder and AeroFolder:FindFirstChild("Shared")
+        local config = shared and shared:FindFirstChild("Config")
+        local gameCfg = config and config:FindFirstChild("Game")
+        local dribbleCfg = gameCfg and gameCfg:FindFirstChild("Dribbling")
+        if dribbleCfg then
+            local ok, res = pcall(require, dribbleCfg)
+            if ok and type(res) == "table" then cfgInput = res.Input end
+        end
+    end)
+
+    if type(cfgInput) ~= "table" then
+        cfgInput = {
+            Z = { R = "Crossover", L = "Hesitation" },
+            C = { R = "Hesitation", L = "Crossover" },
+            ZZ = { R = "Tween", L = "DoubleCrossover" },
+            CC = { R = "DoubleCrossover", L = "Tween" },
+            ZX = { R = "", L = "BehindBack" },
+            CX = { R = "BehindBack", L = "" },
+            ZXC = { R = "", L = "Spin" },
+            CXZ = { R = "Spin", L = "" },
+            H = { R = "SwitchHand", L = "SwitchHand" },
+        }
+    end
+
+    for combo, sides in pairs(cfgInput) do
+        if type(sides) == "table" then
+            for side, name in pairs(sides) do
+                if type(name) == "string" and name ~= "" then
+                    DribbleTable[#DribbleTable + 1] = { Move = name, Combo = combo, Side = side }
+                    DribbleNames[#DribbleNames + 1] = name
+                end
+            end
+        end
+    end
+    table.sort(DribbleNames)
+    if #DribbleNames == 0 then
+        DribbleNames = { "Crossover", "Hesitation", "Tween", "BehindBack", "Spin", "SnatchBack" }
+    end
+end
+
+local function dribbleEntry(moveName)
+    for _, e in ipairs(DribbleTable) do
+        if e.Move == moveName then return e end
+    end
+end
+
+local function dribbleDirection(side)
+    local root = myRoot()
+    local cf = root and root.CFrame
+    if not cf then return Vector3.new(0, 0, -1) end
+    if side == "R" then return cf.RightVector end
+    if side == "L" then return -cf.RightVector end
+    return cf.LookVector
+end
 
 local function playDribble(moveName)
-    -- Placeholder: real implementation sends InputS.Dribble with combo data
-    send(InputS, "Dribble", moveName, false, Vector3.zero)
+    local e = dribbleEntry(moveName)
+    if not e then return false end
+    return send(InputS, "Dribble", e.Combo, false, dribbleDirection(e.Side))
 end
+
+local DribbleMacros = {
+    { Move = "Spin", Key = "Z" },
+    { Move = "Crossover", Key = "None" },
+    { Move = "SnatchBack", Key = "None" },
+    { Move = "HalfSpin", Key = "None" },
+}
+local DRIBBLE_MACRO_PRIORITY = 3000
+local dribbleActions = {}
 
 local function bindDribbleMacro(i)
-    -- Keybind binding would go here (ContextActionService or UIS)
-    -- Left as a stub; full version uses the original bindDribbleMacro
+    local old = dribbleActions[i]
+    if old then pcall(function() CAS:UnbindAction(old) end) end
+    dribbleActions[i] = nil
+
+    local m = DribbleMacros[i]
+    if not m or not m.Key or m.Key == "None" then return end
+    local code = Enum.KeyCode[m.Key]
+    if not code then return end
+
+    local actionName = "PBDribbleMacro" .. i
+    dribbleActions[i] = actionName
+    CAS:BindActionAtPriority(actionName, function(_, state)
+        if state == Enum.UserInputState.Begin then
+            playDribble(m.Move)
+        end
+        return Enum.ContextActionResult.Sink
+    end, false, DRIBBLE_MACRO_PRIORITY, code)
 end
 
--- ============================================================================
--- MOVEMENT LOGIC (stubs – full original has Controls override + heartbeat)
--- ============================================================================
-
-local moveOverride = nil
-local function setMoveInput(v) moveOverride = v end
-local function stopMoving() setMoveInput(nil) end
-
-local function moveTowards(pos, weight)
-    -- Full version writes to Controls:GetMoveVector via rawset
-    -- and uses proxy / HumanoidRootPart
-end
-
--- ============================================================================
--- COSMETICS / GREEN FX / SPOOFERS LOGIC (stubs – original has full implementations)
--- ============================================================================
-
-local function accCatalog()
-    -- Returns category -> item list. Original reads Accessories config.
-    return { Hats = { "None" }, Shirts = { "None" } }
-end
-
-local function wearCosmetic(cat, item, color)
-    notify("Cosmetic", "Wear: " .. tostring(cat) .. " / " .. tostring(item))
-    return true
-end
-
-local function clearCosmetic(cat)
-    notify("Cosmetic", "Cleared " .. tostring(cat))
-    return true
-end
-
-local function parseColor(s)
-    return Color3.fromRGB(255, 255, 255)
-end
-
-local function greenFxList()
-    return { "Basic", "None" }
-end
-
-local function applyGreenFx(name)
-    notify("Green FX", "Applied " .. tostring(name))
-    return true
-end
-
-local function playGreenFx(name)
-    notify("Green FX", "Played " .. tostring(name))
-    return true
-end
-
-local function celebList()
-    return { "None" }
-end
-
-local function playCelebration(name)
-    notify("Celebration", tostring(name))
-end
-
-local function applySpoofs()
-    -- Client-side display spoofs (coins, rank, overall, name)
-    if S.spoofName then
-        -- Original writes to name labels / player list
+local function unbindDribbleMacros()
+    for i = 1, #DribbleMacros do
+        local a = dribbleActions[i]
+        if a then pcall(function() CAS:UnbindAction(a) end) end
+        dribbleActions[i] = nil
     end
 end
 
 -- ============================================================================
--- UI - DRIBBLE TAB
+-- GREEN FX
+-- ============================================================================
+
+local function greenFxList()
+    local out = {}
+    if GreenFxConfig and type(GreenFxConfig.Effects) == "table" then
+        for name in pairs(GreenFxConfig.Effects) do out[#out + 1] = name end
+        table.sort(out)
+    end
+    if #out == 0 then out = { "Basic" } end
+    return out
+end
+
+local function celebList()
+    local out = {}
+    local src = GameCfg or CelebsConfig
+    if type(src) == "table" then
+        for name, v in pairs(src) do
+            if type(name) == "string" and type(v) == "table" then out[#out + 1] = name end
+        end
+        table.sort(out)
+    end
+    if #out == 0 then out = { "Flex" } end
+    return out
+end
+
+local function greenFxModule()
+    if S.gfxMod then return S.gfxMod end
+    local vis = Ctrl and Ctrl:FindFirstChild("Visuals")
+    local comb = vis and vis:FindFirstChild("Combined")
+    local mod = req(comb, "GreenEffects")
+    if mod then S.gfxMod = mod end
+    return mod
+end
+
+local function playGreenFx(name)
+    if type(name) ~= "string" or name == "" then return false, "no effect" end
+    local mod = greenFxModule()
+    if not mod or type(mod.RunEffect) ~= "function" then return false, "no module" end
+    local pkt = myPkt()
+    if not pkt or not pkt.model then return false, "no character" end
+    local ball = looseBall(18) or pktRoot(pkt)
+    local goal = myGoal() or pktRoot(pkt)
+    if not ball or not goal then return false, "no anchor" end
+    local ok, err = pcall(function()
+        mod:RunEffect(pkt.model, ball, goal, WS:GetServerTimeNow(), name)
+    end)
+    if not ok then return false, tostring(err) end
+    pcall(function()
+        if RunGreenR then RunGreenR:FireServer() end
+        if GreenCelebR then GreenCelebR:FireServer() end
+    end)
+    return true
+end
+
+local function applyGreenFx(id)
+    if type(id) ~= "string" then return false, "no id" end
+    S.greenFx = id
+    if InvS and type(InvS.EquipEffect) == "function" then
+        pcall(function() InvS:EquipEffect(id) end)
+    end
+    return true
+end
+
+local function playCelebration(name)
+    if type(name) ~= "string" or name == "" then return end
+    pcall(function()
+        if GreenCelebR then GreenCelebR:FireServer(name) end
+    end)
+end
+
+-- ============================================================================
+-- COSMETICS
+-- ============================================================================
+
+local MODEL_CATS = { "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack" }
+local FLAT_CATS = { "Jersey", "Shirt", "Pants" }
+local LIST_CATS = { "Compression", "LegCompression" }
+
+local ACC_CATS = { "Hats", "Hair", "FacialHair", "Glasses", "Chain", "Backpack",
+                   "Shoes", "Mascot", "Jersey", "Shirt", "Pants",
+                   "Compression", "LegCompression", "SkinTone" }
+
+local function sortedKeys(tbl)
+    local out = {}
+    if type(tbl) == "table" then
+        for k in pairs(tbl) do out[#out + 1] = tostring(k) end
+        table.sort(out)
+    end
+    return out
+end
+
+local function accCatalog()
+    local out = {}
+    local accRoot = RS:FindFirstChild("Accessories")
+    local cfg = AccessoriesCfg
+
+    for _, cat in ipairs(MODEL_CATS) do
+        local list = {}
+        local folder = accRoot and accRoot:FindFirstChild(cat)
+        if type(cfg) == "table" and type(cfg[cat]) == "table" and folder then
+            for name in pairs(cfg[cat]) do
+                if folder:FindFirstChild(tostring(name), true) then
+                    list[#list + 1] = tostring(name)
+                end
+            end
+        end
+        table.sort(list)
+        out[cat] = list
+    end
+
+    out.Shoes = sortedKeys(type(cfg) == "table" and cfg.Shoes or nil)
+
+    local masc = {}
+    local mf = accRoot and accRoot:FindFirstChild("Mascots")
+    if mf then
+        for _, c in ipairs(mf:GetChildren()) do masc[#masc + 1] = c.Name end
+    end
+    table.sort(masc)
+    out.Mascot = masc
+
+    for _, cat in ipairs(FLAT_CATS) do
+        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat] or nil)
+    end
+    for _, cat in ipairs(LIST_CATS) do
+        out[cat] = sortedKeys(type(cfg) == "table" and cfg[cat] or nil)
+    end
+    out.SkinTone = sortedKeys(type(cfg) == "table" and cfg.SkinTone or nil)
+    return out
+end
+
+local function parseColor(s)
+    if type(s) ~= "string" then return { 255, 255, 255 } end
+    local r, g, b = s:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+    if r then
+        return {
+            math.clamp(tonumber(r) or 255, 0, 255),
+            math.clamp(tonumber(g) or 255, 0, 255),
+            math.clamp(tonumber(b) or 255, 0, 255),
+        }
+    end
+    local hex = s:match("^#?(%x%x%x%x%x%x)$")
+    if hex then
+        return {
+            tonumber(hex:sub(1, 2), 16) or 255,
+            tonumber(hex:sub(3, 4), 16) or 255,
+            tonumber(hex:sub(5, 6), 16) or 255,
+        }
+    end
+    return { 255, 255, 255 }
+end
+
+local function wearCosmetic(cat, name, color)
+    local pkt = myPkt()
+    if not pkt or type(pkt.UpdateAppearance) ~= "function" then return false, "no character packet" end
+    if not name or name == "" or name == "None" then return false, "pick an item" end
+    local ok, err = pcall(function()
+        local payload = {}
+        if cat == "Mascot" then
+            payload.Mascot = { name }
+        elseif cat == "SkinTone" then
+            payload.SkinTone = name
+        else
+            payload[cat] = name
+        end
+        if color and type(color) == "table" then
+            payload.Color = color
+        end
+        pkt:UpdateAppearance(payload)
+    end)
+    if not ok then return false, tostring(err) end
+    return true
+end
+
+local function clearCosmetic(cat)
+    local pkt = myPkt()
+    if not pkt or type(pkt.UpdateAppearance) ~= "function" then return false, "no character packet" end
+    local ok, err = pcall(function()
+        if cat == "Mascot" then
+            pkt:UpdateAppearance({ Mascot = { "None" } })
+        elseif cat == "Jersey" or cat == "Shirt" or cat == "Pants" then
+            pkt:UpdateAppearance({ [cat] = "" })
+        else
+            pkt:UpdateAppearance({ [cat] = {} })
+        end
+    end)
+    if not ok then return false, tostring(err) end
+    return true
+end
+
+-- ============================================================================
+-- SPOOFERS
+-- ============================================================================
+
+local function applySpoofs()
+    if not PlayerCtrl then return end
+    local pd = PlayerCtrl.ProfileData
+    if type(pd) ~= "table" then return end
+    if S.spoofCoins then pcall(function() pd.Coins = S.coinsValue end) end
+    if S.spoofRank then
+        pcall(function() pd.Reputation = S.rankValue end)
+        pcall(function() pd.RepEXP = 999999 end)
+    end
+    if S.spoofOverall then
+        local sd = PlayerCtrl.SlotData
+        if type(sd) == "table" then pcall(function() sd.StartingOverall = S.overallValue end) end
+        local slot = pd.Slots and pd.Slots[tostring(pd.Slot or "1")]
+        if type(slot) == "table" then pcall(function() slot.StartingOverall = S.overallValue end) end
+    end
+    if S.spoofName then
+        pcall(function() PlayerCtrl.Name = S.nameValue end)
+        pcall(function() me:SetAttribute("BuildNickname", S.nameValue) end)
+        pcall(function() rawset(me, "Name", S.nameValue) end)
+        pcall(function() rawset(me, "DisplayName", S.nameValue) end)
+        pcall(function()
+            local C = PlayerCtrl and PlayerCtrl.Character
+            local hum = C and C:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayName = S.nameValue end
+        end)
+    end
+end
+
+-- ============================================================================
+-- UI - DRIBBLE
 -- ============================================================================
 
 local DribbleLeft = Tabs.Dribble:AddGroupbox({ Side = "Left", Name = "Ball Control" })
@@ -248,9 +643,7 @@ local DribbleLeft = Tabs.Dribble:AddGroupbox({ Side = "Left", Name = "Ball Contr
 DribbleLeft:AddToggle("DribbleGlide", {
     Text = "Dribble Glide",
     Default = true,
-    Callback = function(v)
-        DribbleGlide.Enabled = v
-    end,
+    Callback = function(v) DribbleGlide.Enabled = v end,
 })
 
 DribbleLeft:AddSlider("GlideSpeed", {
@@ -259,9 +652,7 @@ DribbleLeft:AddSlider("GlideSpeed", {
     Min = 0,
     Max = 100,
     Rounding = 0,
-    Callback = function(v)
-        DribbleGlide.GlideSpeed = v
-    end,
+    Callback = function(v) DribbleGlide.GlideSpeed = v end,
 })
 
 DribbleLeft:AddToggle("SpeedWithBall", {
@@ -315,17 +706,18 @@ for i = 1, #DribbleMacros do
     })
     DribbleLeft:AddKeybind("DribbleMacroKey" .. i, {
         Text = "Macro " .. i .. " Key",
-        Default = "None",
+        Default = slot.Key or "None",
         Mode = "Hold",
         ChangedCallback = function(v)
             slot.Key = v
             bindDribbleMacro(i)
         end,
     })
+    bindDribbleMacro(i)
 end
 
 -- ============================================================================
--- UI - MOVEMENT TAB
+-- UI - MOVEMENT
 -- ============================================================================
 
 local MoveLeft = Tabs.Movement:AddGroupbox({ Side = "Left", Name = "Movement" })
@@ -392,14 +784,13 @@ MoveRight:AddSlider("HipValue", {
 })
 
 -- ============================================================================
--- UI - COSMETICS TAB
+-- UI - COSMETICS
 -- ============================================================================
 
 local CosLeft = Tabs.Cosmetics:AddGroupbox({ Side = "Left", Name = "Catalog" })
 local CosRight = Tabs.Cosmetics:AddGroupbox({ Side = "Right", Name = "Apply" })
 
 local catalog = accCatalog()
-local ACC_CATS = { "Hats", "Shirts", "Pants", "Accessories" }
 
 CosLeft:AddDropdown("AccFolder", {
     Text = "Category",
@@ -408,13 +799,14 @@ CosLeft:AddDropdown("AccFolder", {
     Callback = function(v)
         S.accCat = v
         local list = catalog[v] or { "None" }
-        -- Note: full version updates the item dropdown dynamically
+        if #list == 0 then list = { "None" } end
+        -- Dynamic update of AccItem would require storing the dropdown reference
     end,
 })
 
 CosLeft:AddDropdown("AccItem", {
     Text = "Item",
-    Values = catalog.Hats or { "None" },
+    Values = catalog.Hats and #catalog.Hats > 0 and catalog.Hats or { "None" },
     Default = "None",
     Callback = function(v) S.accItem = v end,
 })
@@ -429,15 +821,16 @@ CosLeft:AddTextbox("AccColor", {
 CosRight:AddButton({
     Text = "Wear",
     Func = function()
-        local ok = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
-        notify("Cosmetic", ok and "Applied" or "Failed")
+        local ok, err = wearCosmetic(S.accCat, S.accItem, parseColor(S.accColor))
+        notify("Cosmetic", ok and (S.accCat .. ": " .. S.accItem) or ("failed: " .. tostring(err)))
     end,
 })
 
 CosRight:AddButton({
     Text = "Clear Category",
     Func = function()
-        clearCosmetic(S.accCat)
+        local ok, err = clearCosmetic(S.accCat)
+        notify("Cosmetic", ok and ("cleared " .. S.accCat) or ("failed: " .. tostring(err)))
     end,
 })
 
@@ -445,14 +838,14 @@ CosRight:AddButton({
     Text = "Refresh Catalog",
     Func = function()
         catalog = accCatalog()
-        notify("Cosmetic", "Catalog refreshed")
+        notify("Cosmetic", "catalog refreshed")
     end,
 })
 
 CosRight:AddLabel("Client-side only. Shows for you, not others.")
 
 -- ============================================================================
--- UI - GREEN FX TAB
+-- UI - GREEN FX
 -- ============================================================================
 
 local GfxLeft = Tabs["Green FX"]:AddGroupbox({ Side = "Left", Name = "Effect" })
@@ -472,14 +865,15 @@ GfxLeft:AddButton({
     Text = "Equip",
     Func = function()
         local ok = applyGreenFx(S.greenFx)
-        notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " failed"))
+        notify("Green FX", tostring(S.greenFx) .. (ok and " equipped" or " equipped (client)"))
     end,
 })
 
 GfxLeft:AddButton({
     Text = "Test Locally",
     Func = function()
-        playGreenFx(S.greenFx)
+        local ok, err = playGreenFx(S.greenFx)
+        notify("Green FX", ok and ("played " .. tostring(S.greenFx)) or ("failed: " .. tostring(err)))
     end,
 })
 
@@ -489,7 +883,7 @@ GfxLeft:AddToggle("GreenFxAuto", {
     Callback = function(v) S.greenFxAuto = v end,
 })
 
-GfxLeft:AddLabel("Effects play client-side even if you don't own them.")
+GfxLeft:AddLabel("RunEffect is called directly, so the effect plays even when the server does not know you own it.")
 
 GfxRight:AddDropdown("CelebPick", {
     Text = "Celebration",
@@ -506,9 +900,7 @@ GfxRight:AddToggle("GreenCeleb", {
 
 GfxRight:AddButton({
     Text = "Play Celebration",
-    Func = function()
-        playCelebration(S.celebPick)
-    end,
+    Func = function() playCelebration(S.celebPick) end,
 })
 
 GfxRight:AddDivider()
@@ -517,7 +909,12 @@ GfxRight:AddDropdown("GoalFxPick", {
     Text = "Goal FX",
     Values = fxList,
     Default = fxList[1] or "Basic",
-    Callback = function(v) S.goalFx = v end,
+    Callback = function(v)
+        S.goalFx = v
+        if S.goalFxOverride then
+            applyGreenFx(v)
+        end
+    end,
 })
 
 GfxRight:AddToggle("GoalFxOverride", {
@@ -525,12 +922,12 @@ GfxRight:AddToggle("GoalFxOverride", {
     Default = false,
     Callback = function(v)
         S.goalFxOverride = v
-        notify("Goal FX", v and "Override ON" or "Override OFF")
+        notify("Goal FX", v and "override ON" or "override OFF")
     end,
 })
 
 -- ============================================================================
--- UI - SPOOFERS TAB
+-- UI - SPOOFERS
 -- ============================================================================
 
 local SpoofLeft = Tabs.Spoofers:AddGroupbox({ Side = "Left", Name = "Profile" })
@@ -607,7 +1004,7 @@ SpoofRight:AddTextbox("NameValue", {
 SpoofRight:AddLabel("Client-side display only.")
 
 -- ============================================================================
--- UI SETTINGS + MANAGERS
+-- UI SETTINGS
 -- ============================================================================
 
 local MenuGroup = Tabs["UI Settings"]:AddGroupbox({ Side = "Left", Name = "Menu" })
@@ -640,6 +1037,11 @@ SaveManager:LoadAutoloadConfig()
 Library:OnUnload(function()
     S.cleaned = true
     DribbleGlide.Enabled = false
+    unbindDribbleMacros()
+    if Controls and origGetMoveVector then
+        pcall(function() rawset(Controls, "GetMoveVector", origGetMoveVector) end)
+    end
+    for _, c in ipairs(S.conns) do pcall(function() c:Disconnect() end) end
     notify("Practical", "Unloaded")
 end)
 
