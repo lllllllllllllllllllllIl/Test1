@@ -181,16 +181,16 @@ CosmeticsGroup:AddButton("Wear", function()
     local item = Options.AccItem.Value
     if F.wearCosmetic then
         local ok, err = F.wearCosmetic(cat, item)
-        notify("Cosmetic", ok and (tostring(cat) .. ": " .. tostring(item)) or ("failed: " .. tostring(err)))
+        Library:Notify({ Title = "Cosmetic", Description = ok and (tostring(cat) .. ": " .. tostring(item)) or ("failed: " .. tostring(err)), Time = 2.5 })
     else
-        notify("Cosmetic", "not ready")
+        Library:Notify({ Title = "Cosmetic", Description = "not ready", Time = 2.5 })
     end
 end)
 CosmeticsGroup:AddButton("Clear Category", function()
     local cat = Options.AccFolder.Value
     if F.clearCosmetic then
         local ok, err = F.clearCosmetic(cat)
-        notify("Cosmetic", ok and ("cleared " .. tostring(cat)) or ("failed: " .. tostring(err)))
+        Library:Notify({ Title = "Cosmetic", Description = ok and ("cleared " .. tostring(cat)) or ("failed: " .. tostring(err)), Time = 2.5 })
     end
 end)
 CosmeticsGroup:AddButton("Refresh Catalog", function()
@@ -202,7 +202,7 @@ CosmeticsGroup:AddButton("Refresh Catalog", function()
         if Options.AccItem and Options.AccItem.SetValues then
             Options.AccItem:SetValues(list)
         end
-        notify("Cosmetic", "catalog refreshed")
+        Library:Notify({ Title = "Cosmetic", Description = "catalog refreshed", Time = 2.5 })
     end
 end)
 CosmeticsGroup:AddLabel("Client-side only. Shows for you, not others.")
@@ -224,14 +224,14 @@ GreenFxGroup:AddButton("Equip", function()
     local name = Options.GreenFx.Value
     if F.applyGreenFx then
         local ok = F.applyGreenFx(name)
-        notify("Green FX", tostring(name) .. (ok and " equipped" or " equipped (client)"))
+        Library:Notify({ Title = "Green FX", Description = tostring(name) .. (ok and " equipped" or " equipped (client)"), Time = 2.5 })
     end
 end)
 GreenFxGroup:AddButton("Test Locally", function()
     local name = Options.GreenFx.Value
     if F.playGreenFx then
         local ok, err = F.playGreenFx(name)
-        notify("Green FX", ok and ("played " .. tostring(name)) or ("failed: " .. tostring(err)))
+        Library:Notify({ Title = "Green FX", Description = ok and ("played " .. tostring(name)) or ("failed: " .. tostring(err)), Time = 2.5 })
     end
 end)
 
