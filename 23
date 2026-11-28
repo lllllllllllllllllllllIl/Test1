@@ -329,6 +329,69 @@ IdentityGroup:AddInput("NameValue", {
 IdentityGroup:AddLabel("Client-side display only.")
 
 -- ============================================================================
+-- SHOOTING TAB
+-- ============================================================================
+
+local ShootingTab = Window:AddTab("Shooting", "target")
+local TimingGroup = ShootingTab:AddLeftGroupbox("Auto Time")
+local ShotGroup = ShootingTab:AddRightGroupbox("Shots")
+
+TimingGroup:AddToggle("AutoTime", {
+    Text = "Auto Time",
+    Default = false,
+})
+
+TimingGroup:AddToggle("ReleaseAtFull", {
+    Text = "Release At Full",
+    Default = false,
+})
+
+TimingGroup:AddSlider("GreenTarget", {
+    Text = "Full Bar Target %",
+    Default = 99,
+    Min = 80,
+    Max = 100,
+    Rounding = 0,
+})
+
+TimingGroup:AddSlider("AutoTimeDelay", {
+    Text = "Release Delay",
+    Default = 0.300,
+    Min = 0.10,
+    Max = 1.20,
+    Rounding = 3,
+})
+
+TimingGroup:AddSlider("AutoTimePingComp", {
+    Text = "Ping Compensation",
+    Default = 0.55,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+})
+
+TimingGroup:AddToggle("AutoTimeNotify", {
+    Text = "Notify On Release",
+    Default = false,
+})
+
+ShotGroup:AddToggle("AutoShoot", {
+    Text = "Auto Shoot When Open",
+    Default = false,
+})
+
+ShotGroup:AddSlider("ShootOpenRange", {
+    Text = "Open Range",
+    Default = 7,
+    Min = 3,
+    Max = 25,
+    Rounding = 0,
+})
+
+ShotGroup:AddDivider()
+ShotGroup:AddLabel("Auto Time releases the shot when the meter reaches the target.")
+
+-- ============================================================================
 -- UI SETTINGS TAB
 -- ============================================================================
 
@@ -1229,6 +1292,180 @@ end
 track(RunService.Heartbeat:Connect(function()
     if Toggles.SpoofCoins.Value or Toggles.SpoofRank.Value or Toggles.SpoofOverall.Value or Toggles.SpoofName.Value then
         applySpoofs()
+    end
+end))
+
+-- ============================================================================
+-- SHOOTING LOGIC
+-- ============================================================================
+
+S.autoTime = false
+S.releaseAtFull = false
+S.greenTarget = 99
+S.autoTimeDelay = 0.300
+S.autoTimePingComp = 0.55
+S.autoTimeNotify = false
+S.autoShoot = false
+S.shootOpenRange = 7
+S.shotArmed = false
+S.shotToken = 0
+S.shotT0 = 0
+S.armedAt = 0
+S.lastRelease = 0
+S.meterGreen = 25
+S.meterSeen = false
+S.meterFillLast = nil
+S.meterDirection = 0
+
+local function pingSeconds()
+    local ok, p = pcall(function() return me:GetNetworkPing() end)
+    return ok and p or 0.05
+end
+
+local function releaseDelay()
+    local base = S.autoTimeDelay or 0.300
+    local ping = pingSeconds() * (S.autoTimePingComp or 0.55)
+    return math.clamp(base - ping, 0.05, 1.5)
+end
+
+local function doRelease(tag)
+    if not S.shotArmed then return end
+    if os.clock() - S.armedAt < 0.05 then return end
+    if os.clock() - S.lastRelease < 0.05 then return end
+    S.lastRelease = os.clock()
+    S.shotArmed = false
+    send(InputS, "Shoot", { Shoot = false, Input = "E" })
+    if Toggles.AutoTimeNotify and Toggles.AutoTimeNotify.Value then
+        Library:Notify({ Title = "Auto Time", Description = string.format("%s  %.3fs", tostring(tag), releaseDelay()), Time = 2 })
+    end
+end
+
+local function armShot()
+    if S.shotArmed then return end
+    S.shotArmed = true
+    S.shotToken += 1
+    S.shotT0 = os.clock()
+    S.armedAt = os.clock()
+    S.meterSeen = false
+    S.meterFillLast = nil
+    S.meterDirection = 0
+    local token = S.shotToken
+    task.delay(1.5, function()
+        if token == S.shotToken and S.shotArmed then doRelease("timeout") end
+    end)
+end
+
+local function meterFill()
+    local C = PlayerCtrl and PlayerCtrl.Character
+    if not C then return nil end
+    local off
+    if type(C.GetAttribute) == "function" then
+        off = C:GetAttribute("meterOffset")
+    end
+    if typeof(off) == "Vector2" then
+        return math.clamp(off.Y + 1, 0, 1)
+    end
+    if type(off) == "number" then return math.clamp(off, 0, 1) end
+    return nil
+end
+
+local function meterReleasePoint()
+    if os.clock() - S.shotT0 < 0.06 then return false end
+    local fill = meterFill()
+    if not fill then return false end
+    if S.meterFillLast then
+        local d = fill - S.meterFillLast
+        if math.abs(d) > 1e-5 then
+            S.meterDirection = d > 0 and 1 or -1
+            S.meterSeen = true
+        end
+    end
+    S.meterFillLast = fill
+    if not S.meterSeen then return false end
+    local pct = (S.greenTarget or 99) / 100
+    if S.meterDirection > 0 then
+        if fill >= pct then doRelease("green") return true end
+    else
+        if fill <= (1 - pct) then doRelease("green") return true end
+    end
+    return false
+end
+
+-- Wire shooting toggles
+if Toggles.AutoTime then
+    Toggles.AutoTime:OnChanged(function(v) S.autoTime = v end)
+end
+if Toggles.ReleaseAtFull then
+    Toggles.ReleaseAtFull:OnChanged(function(v) S.releaseAtFull = v end)
+end
+if Options.GreenTarget then
+    Options.GreenTarget:OnChanged(function(v) S.greenTarget = v end)
+end
+if Options.AutoTimeDelay then
+    Options.AutoTimeDelay:OnChanged(function(v) S.autoTimeDelay = v end)
+end
+if Options.AutoTimePingComp then
+    Options.AutoTimePingComp:OnChanged(function(v) S.autoTimePingComp = v end)
+end
+if Toggles.AutoTimeNotify then
+    Toggles.AutoTimeNotify:OnChanged(function(v) S.autoTimeNotify = v end)
+end
+if Toggles.AutoShoot then
+    Toggles.AutoShoot:OnChanged(function(v) S.autoShoot = v end)
+end
+if Options.ShootOpenRange then
+    Options.ShootOpenRange:OnChanged(function(v) S.shootOpenRange = v end)
+end
+
+-- Auto Time meter watch
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.AutoTime or not Toggles.AutoTime.Value then return end
+    if S.shotArmed then
+        meterReleasePoint()
+    end
+end))
+
+-- Hook shoot remote to arm Auto Time
+local ShootR = remote(InputSvc, "Shoot")
+if ShootR and hookmetamethod and getnamecallmethod and checkcaller then
+    local orig
+    pcall(function()
+        orig = hookmetamethod(game, "__namecall", function(self, ...)
+            if not checkcaller() and self == ShootR and getnamecallmethod() == "FireServer" then
+                local data = ...
+                if type(data) == "table" and data.Shoot == true and Toggles.AutoTime and Toggles.AutoTime.Value then
+                    armShot()
+                end
+            end
+            return orig(self, ...)
+        end)
+    end)
+end
+
+-- Auto Shoot (simple: shoot when open and holding ball)
+local lastAutoShoot = 0
+track(RunService.Heartbeat:Connect(function()
+    if not Toggles.AutoShoot or not Toggles.AutoShoot.Value then return end
+    local now = os.clock()
+    if now - lastAutoShoot < 0.4 then return end
+    local pkt = myPkt()
+    if not pkt then return end
+    local b = pktAttr(pkt, "Basketball")
+    if not b then return end
+    local root = myRoot()
+    if not root then return end
+    -- Check if open (no nearby defenders)
+    local open = true
+    local range = Options.ShootOpenRange and Options.ShootOpenRange.Value or 7
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= me and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local d = (plr.Character.HumanoidRootPart.Position - root.Position).Magnitude
+            if d < range then open = false break end
+        end
+    end
+    if open then
+        send(InputS, "Shoot", { Shoot = true, Input = "E" })
+        lastAutoShoot = now
     end
 end))
 
